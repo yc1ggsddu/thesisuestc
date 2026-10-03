@@ -1,7 +1,11 @@
 % ============================================================================
+
 % 第一章 1.1 研究工作的背景与意义
-% 以下条目仅对应本节引用，按正文首次引用顺序排列。
+
+% 以下条目仅对应本节首次引入的引用，按正文首次引用顺序排列。
+
 % ============================================================================
+
 @article{KGReview_Nickel_2016,
   author  = {Maximilian Nickel and
              Kevin Murphy and
@@ -257,6 +261,415 @@
   url          = {https://openai.com/index/chatgpt/},
   eprint       = {https://openai.com/index/chatgpt/},
   urldate      = {2026-10-02}
+}
+
+% ============================================================================
+
+% 第一章 1.2 国内外研究现状
+
+% 以下条目按正文首次引用顺序排列；与 1.1 共用的文献保留在上一分组，不重复列出。
+
+% ============================================================================
+
+% 1.2.1 基于知识图谱嵌入的知识图谱推理
+@inproceedings{TransH_Wang_2014,
+  author    = {Zhen Wang and
+               Jianwen Zhang and
+               Jianlin Feng and
+               Zheng Chen},
+  title     = {Knowledge Graph Embedding by Translating on Hyperplanes},
+  booktitle = {Proceedings of the Twenty-Eighth AAAI Conference on Artificial Intelligence},
+  pages     = {1112--1119},
+  year      = {2014},
+  doi       = {10.1609/AAAI.V28I1.8870}
+}
+
+@inproceedings{TransR_Lin_2015,
+  author    = {Yankai Lin and
+               Zhiyuan Liu and
+               Maosong Sun and
+               Yang Liu and
+               Xuan Zhu},
+  title     = {Learning Entity and Relation Embeddings for Knowledge Graph Completion},
+  booktitle = {Proceedings of the Twenty-Ninth AAAI Conference on Artificial Intelligence},
+  pages     = {2181--2187},
+  year      = {2015},
+  doi       = {10.1609/AAAI.V29I1.9491}
+}
+
+@inproceedings{sun2019rotate,
+  author       = {Zhiqing Sun and
+                  Zhi{-}Hong Deng and
+                  Jian{-}Yun Nie and
+                  Jian Tang},
+  title        = {{RotatE}: Knowledge Graph Embedding by Relational Rotation in Complex
+                  Space},
+  booktitle    = {International Conference on Learning Representations},
+  publisher    = {OpenReview.net},
+  year         = {2019},
+  url          = {https://openreview.net/forum?id=HkgEQnRqYQ},
+  timestamp    = {Thu, 14 Nov 2024 14:26:09 +0100},
+  biburl       = {https://dblp.org/rec/conf/iclr/SunDNT19.bib},
+  bibsource    = {dblp computer science bibliography, https://dblp.org}
+}
+
+@inproceedings{RESCAL_Nickel_2011,
+  author    = {Maximilian Nickel and
+               Volker Tresp and
+               Hans{-}Peter Kriegel},
+  title     = {A Three-Way Model for Collective Learning on Multi-Relational Data},
+  booktitle = {Proceedings of the 28th International Conference on Machine Learning},
+  pages     = {809--816},
+  year      = {2011}
+}
+
+@inproceedings{yang2015embedding,
+  author       = {Bishan Yang and
+                  Wen{-}tau Yih and
+                  Xiaodong He and
+                  Jianfeng Gao and
+                  Li Deng},
+  editor       = {Yoshua Bengio and
+                  Yann LeCun},
+  title        = {Embedding Entities and Relations for Learning and Inference in Knowledge
+                  Bases},
+  booktitle    = {International Conference on Learning Representations},
+  year         = {2015},
+  url          = {http://arxiv.org/abs/1412.6575},
+  timestamp    = {Thu, 11 Apr 2024 13:33:57 +0200},
+  biburl       = {https://dblp.org/rec/journals/corr/YangYHGD14a.bib},
+  bibsource    = {dblp computer science bibliography, https://dblp.org}
+}
+
+@inproceedings{trouillon2016complex,
+  author    = {Trouillon, Th{\'e}o and Welbl, Johannes and
+               Riedel, Sebastian and Gaussier, Eric and
+               Bouchard, Guillaume},
+  title     = {Complex Embeddings for Simple Link Prediction},
+  booktitle = {Proceedings of the 33rd International Conference on Machine Learning},
+  editor    = {Balcan, Maria Florina and Weinberger, Kilian Q.},
+  series    = {Proceedings of Machine Learning Research},
+  volume    = {48},
+  pages     = {2071--2080},
+  year      = {2016},
+  publisher = {PMLR},
+  address   = {New York, New York, USA},
+  url       = {https://proceedings.mlr.press/v48/trouillon16.html}
+}
+
+@inproceedings{TuckER_Balazevic_2019,
+  author    = {Ivana Bala{\v{z}}evi{\'c} and
+               Carl Allen and
+               Timothy M. Hospedales},
+  title     = {{TuckER}: Tensor Factorization for Knowledge Graph Completion},
+  booktitle = {Proceedings of the 2019 Conference on Empirical Methods in
+               Natural Language Processing and the 9th International Joint
+               Conference on Natural Language Processing},
+  year      = {2019},
+  pages = {5185--5194},
+  publisher = {Association for Computational Linguistics},
+  doi = {10.18653/v1/D19-1522},
+  url = {https://aclanthology.org/D19-1522/}
+}
+
+@inproceedings{dettmers2018conve,
+  author       = {Tim Dettmers and
+                  Pasquale Minervini and
+                  Pontus Stenetorp and
+                  Sebastian Riedel},
+  editor       = {Sheila A. McIlraith and
+                  Kilian Q. Weinberger},
+  title        = {Convolutional {2D} Knowledge Graph Embeddings},
+  booktitle    = {Proceedings of the {AAAI} Conference on Artificial Intelligence},
+  pages        = {1811--1818},
+  publisher    = {{AAAI} Press},
+  year         = {2018},
+  url          = {https://doi.org/10.1609/aaai.v32i1.11573},
+  doi          = {10.1609/AAAI.V32I1.11573},
+  timestamp    = {Sat, 21 Oct 2023 10:46:17 +0200},
+  biburl       = {https://dblp.org/rec/conf/aaai/DettmersMS018.bib},
+  bibsource    = {dblp computer science bibliography, https://dblp.org},
+  volume       = {32},
+}
+
+@inproceedings{vashishth2020composition,
+  author       = {Shikhar Vashishth and
+                  Soumya Sanyal and
+                  Vikram Nitin and
+                  Partha P. Talukdar},
+  title        = {Composition-based Multi-Relational Graph Convolutional Networks},
+  booktitle    = {International Conference on Learning Representations},
+  publisher    = {OpenReview.net},
+  year         = {2020},
+  url          = {https://openreview.net/forum?id=BylA_C4tPr},
+  timestamp    = {Wed, 02 Sep 2020 17:21:11 +0200},
+  biburl       = {https://dblp.org/rec/conf/iclr/VashishthSNT20.bib},
+  bibsource    = {dblp computer science bibliography, https://dblp.org}
+}
+
+% 1.2.2 基于预训练语言模型的知识图谱推理
+@inproceedings{kim2020mtlkgc,
+  author       = {Bosung Kim and
+                  Taesuk Hong and
+                  Youngjoong Ko and
+                  Jungyun Seo},
+  editor       = {Donia Scott and
+                  N{\'{u}}ria Bel and
+                  Chengqing Zong},
+  title        = {Multi-Task Learning for Knowledge Graph Completion with Pre-trained
+                  Language Models},
+  booktitle    = {Proceedings of the 28th International Conference on Computational Linguistics},
+  pages        = {1737--1743},
+  publisher    = {International Committee on Computational Linguistics},
+  year         = {2020},
+  url          = {https://doi.org/10.18653/v1/2020.coling-main.153},
+  doi          = {10.18653/V1/2020.COLING-MAIN.153},
+  timestamp    = {Fri, 06 Aug 2021 00:39:49 +0200},
+  biburl       = {https://dblp.org/rec/conf/coling/KimHKS20.bib},
+  bibsource    = {dblp computer science bibliography, https://dblp.org}
+}
+
+@inproceedings{wang2022simkgc,
+  author       = {Liang Wang and
+                  Wei Zhao and
+                  Zhuoyu Wei and
+                  Jingming Liu},
+  editor       = {Smaranda Muresan and
+                  Preslav Nakov and
+                  Aline Villavicencio},
+  title        = {{SimKGC}: Simple Contrastive Knowledge Graph Completion with Pre-trained
+                  Language Models},
+  booktitle    = {Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers)},
+  pages        = {4281--4294},
+  publisher    = {Association for Computational Linguistics},
+  year         = {2022},
+  url          = {https://doi.org/10.18653/v1/2022.acl-long.295},
+  doi          = {10.18653/V1/2022.ACL-LONG.295},
+  timestamp    = {Sun, 19 Jan 2025 13:21:28 +0100},
+  biburl       = {https://dblp.org/rec/conf/acl/0046ZWL22.bib},
+  bibsource    = {dblp computer science bibliography, https://dblp.org}
+}
+
+@inproceedings{yang2024knowc,
+  author       = {Guangqian Yang and
+                  Yi Liu and
+                  Lei Zhang and
+                  Licheng Zhang and
+                  Hongtao Xie and
+                  Zhendong Mao},
+  editor       = {Lun{-}Wei Ku and
+                  Andre Martins and
+                  Vivek Srikumar},
+  title        = {Knowledge Context Modeling with Pre-trained Language Models for Contrastive
+                  Knowledge Graph Completion},
+  booktitle    = {Findings of the Association for Computational Linguistics: {ACL} 2024},
+  series       = {Findings of {ACL}},
+  pages        = {8619--8630},
+  publisher    = {Association for Computational Linguistics},
+  year         = {2024},
+  url          = {https://doi.org/10.18653/v1/2024.findings-acl.509},
+  doi          = {10.18653/V1/2024.FINDINGS-ACL.509},
+  timestamp    = {Fri, 20 Feb 2026 08:07:46 +0100},
+  biburl       = {https://dblp.org/rec/conf/acl/YangLZZXM24.bib},
+  bibsource    = {dblp computer science bibliography, https://dblp.org}
+}
+
+
+@inproceedings{saxena2022sequence,
+  author       = {Apoorv Saxena and
+                  Adrian Kochsiek and
+                  Rainer Gemulla},
+  editor       = {Smaranda Muresan and
+                  Preslav Nakov and
+                  Aline Villavicencio},
+  title        = {Sequence-to-Sequence Knowledge Graph Completion and Question Answering},
+  booktitle    = {Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers)},
+  pages        = {2814--2828},
+  publisher    = {Association for Computational Linguistics},
+  year         = {2022},
+  url          = {https://doi.org/10.18653/v1/2022.acl-long.201},
+  doi          = {10.18653/V1/2022.ACL-LONG.201},
+  timestamp    = {Tue, 07 May 2024 20:08:12 +0200},
+  biburl       = {https://dblp.org/rec/conf/acl/SaxenaKG22.bib},
+  bibsource    = {dblp computer science bibliography, https://dblp.org}
+}
+
+% 1.2.3 基于结构与语义融合的知识图谱推理
+@article{wang2021kepler,
+  title     = {{KEPLER}: A Unified Model for Knowledge Embedding and
+               Pre-trained Language Representation},
+  author    = {Wang, Xiaozhi and Gao, Tianyu and Zhu, Zhaocheng
+               and Zhang, Zhengyan and Liu, Zhiyuan and Li, Juanzi
+               and Tang, Jian},
+  journal   = {Transactions of the Association for Computational Linguistics},
+  volume    = {9},
+  pages     = {176--194},
+  year      = {2021},
+  publisher = {MIT Press},
+  doi       = {10.1162/tacl_a_00360},
+  url       = {https://aclanthology.org/2021.tacl-1.11/}
+}
+
+@inproceedings{wang2021structure,
+  author       = {Bo Wang and
+                  Tao Shen and
+                  Guodong Long and
+                  Tianyi Zhou and
+                  Ying Wang and
+                  Yi Chang},
+  editor       = {Jure Leskovec and
+                  Marko Grobelnik and
+                  Marc Najork and
+                  Jie Tang and
+                  Leila Zia},
+  title        = {Structure-Augmented Text Representation Learning for Efficient Knowledge
+                  Graph Completion},
+  booktitle    = {Proceedings of the Web Conference 2021},
+  pages        = {1737--1748},
+  publisher    = {Association for Computing Machinery},
+  year         = {2021},
+  url          = {https://doi.org/10.1145/3442381.3450043},
+  doi          = {10.1145/3442381.3450043},
+  timestamp    = {Thu, 26 Jun 2025 15:39:23 +0200},
+  biburl       = {https://dblp.org/rec/conf/www/WangSLZW021.bib},
+  bibsource    = {dblp computer science bibliography, https://dblp.org}
+}
+
+@inproceedings{chen2023cspromkg,
+  author       = {Chen Chen and
+                  Yufei Wang and
+                  Aixin Sun and
+                  Bing Li and
+                  Kwok{-}Yan Lam},
+  editor       = {Anna Rogers and
+                  Jordan L. Boyd{-}Graber and
+                  Naoaki Okazaki},
+  title        = {Dipping {PLMs} Sauce: Bridging Structure and Text for Effective Knowledge
+                  Graph Completion via Conditional Soft Prompting},
+  booktitle    = {Findings of the Association for Computational Linguistics: {ACL} 2023},
+  series       = {Findings of {ACL}},
+  pages        = {11489--11503},
+  publisher    = {Association for Computational Linguistics},
+  year         = {2023},
+  url          = {https://doi.org/10.18653/v1/2023.findings-acl.729},
+  doi          = {10.18653/V1/2023.FINDINGS-ACL.729},
+  timestamp    = {Tue, 27 Jan 2026 20:26:47 +0100},
+  biburl       = {https://dblp.org/rec/conf/acl/ChenWSLL23.bib},
+  bibsource    = {dblp computer science bibliography, https://dblp.org}
+}
+
+@inproceedings{hou2025srpkgc,
+  author       = {Yanning Hou and
+                  Sihang Zhou and
+                  Ke Liang and
+                  Lingyuan Meng and
+                  Xiaoshu Chen and
+                  Ke Xu and
+                  Siwei Wang and
+                  Xinwang Liu and
+                  Jian Huang},
+  title        = {Soft Reasoning Paths for Knowledge Graph Completion},
+  booktitle    = {Proceedings of the Thirty-Fourth International Joint Conference on Artificial Intelligence},
+  pages        = {2937--2945},
+  publisher    = {International Joint Conferences on Artificial Intelligence Organization},
+  year         = {2025},
+  url          = {https://doi.org/10.24963/ijcai.2025/327},
+  doi          = {10.24963/IJCAI.2025/327},
+  timestamp    = {Wed, 24 Sep 2025 17:45:28 +0200},
+  biburl       = {https://dblp.org/rec/conf/ijcai/Hou00MCX00H25.bib},
+  bibsource    = {dblp computer science bibliography, https://dblp.org}
+}
+
+@article{xue2025hsae,
+  author       = {Yifan Xue and
+                  Wanqiang Cai and
+                  Yingyao Ma and
+                  Lotfi Senhadji and
+                  Huazhong Shu and
+                  Jiasong Wu},
+  title        = {{HSAE:} Hierarchical structure augment embedding for various knowledge
+                  graph completion},
+  journal      = {Knowl. Based Syst.},
+  volume       = {329},
+  pages        = {114320},
+  year         = {2025},
+  url          = {https://doi.org/10.1016/j.knosys.2025.114320},
+  doi          = {10.1016/J.KNOSYS.2025.114320},
+  timestamp    = {Tue, 24 Mar 2026 08:47:44 +0100},
+  biburl       = {https://dblp.org/rec/journals/kbs/XueCMSSW25.bib},
+  bibsource    = {dblp computer science bibliography, https://dblp.org}
+}
+
+% 1.2.4 提示学习在知识图谱中的应用
+@inproceedings{petroni2019language,
+  author = {Fabio Petroni and Tim Rockt{\"a}schel and Sebastian Riedel and Patrick Lewis and Anton Bakhtin and Yuxiang Wu and Alexander Miller},
+  title = {Language Models as Knowledge Bases?},
+  booktitle = {Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing},
+  year = {2019},
+  pages = {2463--2473},
+  publisher = {Association for Computational Linguistics},
+  doi = {10.18653/v1/D19-1250},
+  url = {https://aclanthology.org/D19-1250/}
+}
+
+@inproceedings{AutoPrompt_Shin_2020,
+  author    = {Taylor Shin and Yasaman Razeghi and Robert L. Logan IV and
+               Eric Wallace and Sameer Singh},
+  title     = {AutoPrompt: Eliciting Knowledge from Language Models with
+               Automatically Generated Prompts},
+  booktitle = {Proceedings of the 2020 Conference on Empirical Methods in
+               Natural Language Processing (EMNLP)},
+  pages     = {4222--4235},
+  year      = {2020},
+  address   = {Online},
+  publisher = {Association for Computational Linguistics},
+  doi       = {10.18653/v1/2020.emnlp-main.346},
+  url       = {https://aclanthology.org/2020.emnlp-main.346/}
+}
+
+@inproceedings{lester2021power,
+  author       = {Brian Lester and
+                  Rami Al{-}Rfou and
+                  Noah Constant},
+  editor       = {Marie{-}Francine Moens and
+                  Xuanjing Huang and
+                  Lucia Specia and
+                  Scott Wen{-}tau Yih},
+  title        = {The Power of Scale for Parameter-Efficient Prompt Tuning},
+  booktitle    = {Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing},
+  pages        = {3045--3059},
+  publisher    = {Association for Computational Linguistics},
+  year         = {2021},
+  url          = {https://doi.org/10.18653/v1/2021.emnlp-main.243},
+  doi          = {10.18653/V1/2021.EMNLP-MAIN.243},
+  timestamp    = {Fri, 16 Feb 2024 08:27:36 +0100},
+  biburl       = {https://dblp.org/rec/conf/emnlp/LesterAC21.bib},
+  bibsource    = {dblp computer science bibliography, https://dblp.org}
+}
+
+@inproceedings{PrefixTuning_Li_2021,
+  author    = {Xiang Lisa Li and Percy Liang},
+  title     = {Prefix-Tuning: Optimizing Continuous Prompts for Generation},
+  booktitle = {Proceedings of the 59th Annual Meeting of the Association for
+               Computational Linguistics and the 11th International Joint
+               Conference on Natural Language Processing
+               (Volume 1: Long Papers)},
+  pages     = {4582--4597},
+  year      = {2021},
+  publisher = {Association for Computational Linguistics},
+  doi       = {10.18653/v1/2021.acl-long.353},
+  url       = {https://aclanthology.org/2021.acl-long.353/}
+}
+
+@inproceedings{wei2023kicgpt,
+  author = {Yanbin Wei and Qiushi Huang and Yu Zhang and James Kwok},
+  title = {{KICGPT}: Large Language Model with Knowledge in Context for Knowledge Graph Completion},
+  booktitle = {Findings of the Association for Computational Linguistics: EMNLP 2023},
+  year = {2023},
+  pages = {8667--8683},
+  publisher = {Association for Computational Linguistics},
+  doi = {10.18653/v1/2023.findings-emnlp.580},
+  url = {https://aclanthology.org/2023.findings-emnlp.580/}
 }
 
 % 第一章、第二章引用：沿用小论文及参考材料中的条目。
