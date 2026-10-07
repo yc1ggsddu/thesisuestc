@@ -1,68 +1,371 @@
-\chapter{时域积分方程基础}
-时域积分方程（TDIE）方法作为分析瞬态电磁波动现象最主要的数值算法之一，常用于求解均匀散射体和表面散射体的瞬态电磁散射问题。
+\chapter{相关概念与理论基础}
+\label{chap:background}
 
-\section{时域积分方程的类型}
+知识图谱补全利用已知事实和实体文本预测缺失链接。本章首先给出知识图谱补全的任务定义，随后介绍知识图谱嵌入与预训练语言模型的基本原理及其在知识图谱补全中的应用方式，并说明提示学习、门控融合和对比学习等技术如何与上述方法结合，最后介绍常用数据集与排名评估方法。
 
-\section{空间基函数与时间基函数}
-利用数值算法求解时域积分方程，首先需要选取适当的空间基函数与时间基函数对待求感应电流进行离散。
+\section{知识图谱及推理任务定义}
 
-\subsection{空间基函数}
-RWG 基函数是定义在三角形单元上的最具代表性的基函数。它的具体定义如下：
+\subsection{知识图谱的基本概念与符号定义}
+
+知识图谱可以表示为有向多关系图
 \begin{equation}
-f_n(\bm{r})=
-\begin{cases}
-\frac{l_n}{2A_n^+}\bm{\rho}_n^+=\frac{l_n}{2A_n^+}(\bm{r}-\bm{r}_+)&\bm{r}\in T_n^+\\
-\frac{l_n}{2A_n^-}\bm{\rho}_n^-=\frac{l_n}{2A_n^-}(\bm{r}_--\bm{r})&\bm{r}\in T_n^-\\
-0&\text{otherwise}
-\end{cases}
+    \mathcal{G}=(\mathcal{E},\mathcal{R},\mathcal{T}),
+    \qquad \mathcal{T}\subseteq\mathcal{E}\times\mathcal{R}\times\mathcal{E},
+    \label{eq:bg_kg}
 \end{equation}
+其中，$\mathcal{E}$ 为实体集合，$\mathcal{R}$ 为关系集合，$\mathcal{T}$ 为已观测事实构成的三元组集合。对任意 $(h,r,t)\in\mathcal{T}$，$h$ 和 $t$ 分别为头实体与尾实体，$r$ 表示从 $h$ 指向 $t$ 的关系。不同关系可以连接同一实体对，因此知识图谱不同于仅记录无类型邻接关系的简单图\cite{KGReview_Nickel_2016}。
 
-其中，$l_n$为三角形单元$T_n^+$和$T_n^-$公共边的长度，$A_n^+$和$A_n^-$分别为三角形单元$T_n^+$和$T_n^-$的面积（如图\ref{pica}所示）。
+式\eqref{eq:bg_kg}中，已记录的事实只占所有可能的实体与关系组合的一部分。在开放世界假设下，未出现在 $\mathcal{T}$ 中的三元组既可能为假，也可能是真实但尚未被观测的事实。训练时通常从这些未观测组合中采样，作为近似负例使用，因此负例标签仍可能与事实不符。
 
-\begin{figure}[h]
-	\includegraphics{pica.pdf}
-	\caption{RWG 基函数几何参数示意图}
-	\label{pica}
+文本增强方法还使用实体 $e$ 和关系 $r$ 对应的文本 $D_e$ 与 $D_r$。实体文本通常包括名称和描述，关系文本则可以是名称或自然语言解释。实体标识用于唯一确定图谱中的对象，文本为预测提供语义信息。由于不同实体可能同名，同一实体也可能有多个别名，文本与实体标识之间会有明确的映射。
+
+本章主要符号见表\ref{tab:bg_notation}。下文统一约定评分 $s(h,r,t)$ 越大，候选三元组越可信。对于距离模型，取距离的负值作为评分，使其与相似度模型的评分方向一致。
+
+\begin{table}[htbp]
+    \centering
+    \caption{主要符号及其含义}
+    \label{tab:bg_notation}
+    \begin{tabular}{p{0.25\textwidth}p{0.62\textwidth}}
+        \toprule
+        符号 & 含义 \\
+        \midrule
+        $\mathcal{E},\mathcal{R},\mathcal{T}$ & 实体集合、关系集合与观测三元组集合 \\
+        $\mathcal{T}_{\mathrm{train}},\mathcal{T}_{\mathrm{valid}},\mathcal{T}_{\mathrm{test}}$ & 训练、验证与测试三元组集合 \\
+        $\mathbf{e}_h,\mathbf{r},\mathbf{e}_t$ & 头实体、关系与尾实体的嵌入表示 \\
+		$\mathcal{C}(h,r),\mathcal{C}(r,t)$ & 尾实体预测与头实体预测中的候选实体集合 \\
+        $D_e,D_r$ & 实体文本与关系文本 \\
+        $s(h,r,t)$ & 三元组评分函数，数值越大表示越可信 \\
+        $d_e,d_r,d$ & 实体嵌入维度、关系嵌入维度与语言模型隐藏维度 \\
+        $\mathbf{H}\in\mathbb{R}^{L\times d}$ & 长度为 $L$ 的词元序列对应的隐藏状态 \\
+        $\mathbf{q},\mathbf{z}_e$ & 查询表示与候选实体表示 \\
+        $\tau,\gamma$ & 对比目标中的温度与正例间隔参数 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{知识图谱补全与推理任务的形式化表示}
+
+链接预测通过训练图学习评分函数，并对缺失位置上的候选实体排序。给定尾实体预测查询 $(h,r,?)$，其预测结果可以写为
+\begin{equation}
+    \hat{t}=\arg\max_{e\in\mathcal{C}(h,r)}s(h,r,e),
+    \label{eq:bg_tail_prediction}
+\end{equation}
+其中，$\mathcal{C}(h,r)$ 为候选实体集合。在不施加类型或检索约束的全实体排序中，$\mathcal{C}(h,r)=\mathcal{E}$。头实体预测同理为
+\begin{equation}
+    \hat{h}=\arg\max_{e\in\mathcal{C}(r,t)}s(e,r,t).
+\end{equation}
+一个查询可能有多个正确答案，评估时需要记录目标实体在候选列表中的排名\cite{bordes2013translating}。相关任务还包括关系预测 $(h,?,t)$ 和三元组分类，前者在关系集合中选择答案，后者判断三元组的真伪。它们的输出和评估方式均与头尾实体排序不同。相较于前两项任务，链接预测不仅要求模型具备对图谱拓扑结构的深度理解，还直接面向真实知识库构建中最为广泛的“实体补漏”需求，能够提供更全面、细粒度的推理结果。
+
+数据通常划分为训练集、验证集和测试集，分别用于参数学习、超参数调整与模型选择，以及最终评估。为统一头实体预测与尾实体预测，部分方法为三元组 $(h,r,t)$ 构造逆向形式 $(t,r^{-1},h)$，从而将 $(?,r,t)$ 转换为 $(t,r^{-1},?)$。例如，SimKGC 采用这一方式，将两个方向的实体预测统一为尾实体预测\cite{wang2022simkgc}。其中，$r^{-1}$ 是人为构造的逆关系标识，可以没有对应的自然语言名称。逆向训练样本仅由训练事实生成，验证集和测试集中的事实仍保留在各自划分中。
+
+根据评估实体是否在训练阶段出现，知识图谱补全可分为传导式（Transductive）和归纳式（Inductive）两类设定。传导式补全在预先确定的实体范围内预测缺失链接，归纳式补全需要为训练阶段未出现的实体生成表示，部分设定还涉及未见关系。在这一挑战下，传统依赖固定实体参数查找表的知识图谱嵌入模型往往束手无策；相比之下，基于预训练语言模型的方法能够利用实体的自然语言描述，天然具备对新实体的泛化能力。然而，若融合模型在引入文本的同时依然绑定了固定的图结构参数表，则仍需额外设计针对新实体的结构特征初始化或聚合机制。例如，KEPLER 所构建的 Wikidata5M 数据集便提供了多种不同的数据划分方式，为系统性评估模型在这些复杂泛化场景下的表现提供了重要基准\cite{wang2021kepler}。本文的研究主要聚焦于传统的传导式链接预测任务。
+
+\section{知识图谱嵌入模型基础}
+
+知识图谱嵌入为实体和关系学习连续向量，并通过评分函数刻画三元组中的统计规律。结构距离模型根据几何变换后的向量距离评分，语义匹配模型则计算潜在特征之间的交互。两类模型都可用于链接预测，也可与预训练语言模型或图神经网络结合。
+
+\subsection{结构距离模型}
+
+关系的映射类型决定了同一查询可能对应多少个答案。一对一关系中，一个头实体对应一个尾实体，反向也具有唯一对应；一对多关系允许同一头实体连接多个尾实体，多对一关系则允许多个头实体连接同一尾实体；多对多关系在两个方向上都可能出现多个对应对象。共享实体嵌入时，模型需要在满足这些连接约束的同时保留不同实体的差异。TransH 和 TransR 引入关系条件投影，正是为了使同一实体能够在不同关系下采用不同表示\cite{TransH_Wang_2014,TransR_Lin_2015}。
+
+除映射类型外，关系还可能具有对称、逆关系和组合等模式\cite{sun2019rotate}。对称关系要求 $(h,r,t)$ 成立时 $(t,r,h)$ 也成立；对于一对互逆关系，$(h,r_1,t)$ 与 $(t,r_2,h)$ 表达相反方向的同一事实。关系组合则描述两个关系连续作用后与第三个关系之间的联系，例如 $(h,r_1,e)$ 和 $(e,r_2,t)$ 可以共同蕴含 $(h,r_3,t)$。这些模式影响评分函数的选择：对非对称关系，需要区分头尾实体的方向；对逆关系和组合关系，则需要刻画不同关系运算之间的联系。下文分别介绍平移、关系条件投影与旋转模型。
+
+关系映射类型与常见关系模式如图\ref{fig:bg_relation_patterns}所示。
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.90\textwidth]{pic/ch2/relation.pdf}
+    \caption{知识图谱的关系映射类型与关系模式}
+    \label{fig:bg_relation_patterns}
 \end{figure}
 
-由于时域混合场积分方程是时域电场积分方程与时域磁场积分方程的线性组合，因此时域混合场积分方程时间步进算法的阻抗矩阵特征与时域电场积分方程时间步进算法的阻抗矩阵特征相同。
+\textbf{（1）平移模型。}设实体和关系嵌入均位于 $\mathbb{R}^{d_e}$，TransE 假设真实三元组满足 $\mathbf{e}_h+\mathbf{r}\approx\mathbf{e}_t$，相应评分为\cite{bordes2013translating}
 \begin{equation}
-\label{latent_binary_variable}
-\bm{r}_{i,j}=
-\begin{cases}
-1,f(\bm{x}^{i};\bm{w})\cdot f(\bm{x}^{j};\bm{w})\geq u(\lambda),\\
-0,f(\bm{x}^{i};\bm{w})\cdot f(\bm{x}^{j};\bm{w})< l(\lambda), 1\leq i,j\leq n.\\
-f(\bm{x}^{i};\bm{w})\cdot f(\bm{x}^{j};\bm{w}),\text{otherwise},
-\end{cases}
+    s_{\mathrm{TransE}}(h,r,t)
+    =-\|\mathbf{e}_h+\mathbf{r}-\mathbf{e}_t\|_p,
+    \qquad p\in\{1,2\}.
+    \label{eq:bg_transe}
+\end{equation}
+同一关系下的三元组共享平移向量，单个三元组的评分复杂度为 $O(d_e)$。这一假设也限制了模型对复杂映射关系的表示能力。例如，当 $(h,r,t_1)$ 和 $(h,r,t_2)$ 同时成立时，$\mathbf{e}_{t_1}$ 与 $\mathbf{e}_{t_2}$ 都需接近同一个位置，不同尾实体之间的差异可能因此被压缩。
+
+\textbf{（2）关系条件投影。}TransH 为关系 $r$ 设置单位法向量 $\mathbf{w}_r$ 和位于对应超平面内的平移向量 $\mathbf{a}_r$，先对实体投影，再计算平移距离\cite{TransH_Wang_2014}：
+\begin{align}
+    \mathbf{e}_{h\perp}&=\mathbf{e}_h-(\mathbf{w}_r^\top\mathbf{e}_h)\mathbf{w}_r,\\
+    \mathbf{e}_{t\perp}&=\mathbf{e}_t-(\mathbf{w}_r^\top\mathbf{e}_t)\mathbf{w}_r,\\
+    s_{\mathrm{TransH}}(h,r,t)&=-\|\mathbf{e}_{h\perp}+\mathbf{a}_r-\mathbf{e}_{t\perp}\|_2^2.
+\end{align}
+其中，$\|\mathbf{w}_r\|_2=1$，平移向量位于相应超平面内。同一实体在不同关系的超平面上具有不同投影，可以据此参与各类关系的建模。
+
+TransR 进一步将实体空间与关系空间分离。令 $\mathbf{e}_h,\mathbf{e}_t\in\mathbb{R}^{d_e}$、$\mathbf{r}\in\mathbb{R}^{d_r}$，并定义关系特定矩阵 $\mathbf{M}_r\in\mathbb{R}^{d_r\times d_e}$，其评分为\cite{TransR_Lin_2015}
+\begin{equation}
+    s_{\mathrm{TransR}}(h,r,t)
+    =-\|\mathbf{M}_r\mathbf{e}_h+\mathbf{r}-\mathbf{M}_r\mathbf{e}_t\|_2^2.
+\end{equation}
+关系特定的映射可以提取实体的不同特征，代价是为每种关系增加一组矩阵参数。模型的参数开销随关系数量和嵌入维度增长，投影矩阵的学习也受训练样本规模影响。
+
+\textbf{（3）旋转模型。}RotatE 把实体表示置于复数空间，将关系定义为逐维单位模复数\cite{sun2019rotate}：
+\begin{equation}
+    \mathbf{e}_h,\mathbf{e}_t\in\mathbb{C}^{d_e},
+    \quad r_j=\exp(\mathrm{i}\theta_{r,j}),
+    \quad |r_j|=1.
+\end{equation}
+其中，$\theta_{r,j}$ 为关系 $r$ 在第 $j$ 个维度上的旋转相位。
+关系作用于头实体后，应接近尾实体，其评分可写为
+\begin{equation}
+    s_{\mathrm{RotatE}}(h,r,t)
+    =-\|\mathbf{e}_h\odot\mathbf{r}-\mathbf{e}_t\|_1,
+    \label{eq:bg_rotate}
+\end{equation}
+其中，$\mathrm{i}$ 为虚数单位，$\odot$ 表示逐元素乘法。复数乘法将关系组合表示为旋转的复合，并用逆旋转描述逆关系。RotatE 可借此表示多种关系模式，其在具体数据上的预测准确率则取决于实际训练与评估结果。
+
+训练距离模型时，常用目标之一是让正三元组与采样负三元组之间保持间隔。以评分越大越可信的约定为例，成对间隔损失为
+\begin{equation}
+    \mathcal{L}_{\mathrm{rank}}
+    =\sum_{(x^+,x^-)\in\mathcal{P}}
+      \max\{0,\mu-s(x^+)+s(x^-)\},
+    \label{eq:bg_margin}
+\end{equation}
+其中，$x^+$ 和 $x^-$ 分别表示正负三元组，$\mathcal{P}$ 为采样配对集合，$\mu>0$ 为间隔。正例分数高于负例且达到给定间隔时，该样本对的损失为零。除此之外，还可采用逻辑损失、自对抗采样等训练策略。
+
+\subsection{语义匹配模型}
+
+语义匹配模型直接计算头实体、关系与尾实体潜在特征的相容程度。以双线性形式为例，RESCAL 的评分为\cite{RESCAL_Nickel_2011}
+\begin{equation}
+    s_{\mathrm{RESCAL}}(h,r,t)
+    =\mathbf{e}_h^\top\mathbf{M}_r\mathbf{e}_t,
+    \qquad \mathbf{M}_r\in\mathbb{R}^{d_e\times d_e}.
+\end{equation}
+完整关系矩阵可以描述不同实体特征维度之间的交互，但每种关系需要 $O(d_e^2)$ 个矩阵参数。DistMult 将关系矩阵限制为对角矩阵，得到\cite{yang2015embedding}
+\begin{equation}
+    s_{\mathrm{DistMult}}(h,r,t)
+    =\sum_{j=1}^{d_e} e_{h,j}r_je_{t,j}.
+    \label{eq:bg_distmult}
 \end{equation}
 
-时域积分方程时间步进算法的阻抗元素直接影响算法的后时稳定性，因此阻抗元素的计算是算法的关键之一，采用精度高效的方法计算时域阻抗元素是时域积分方程时间步进算法研究的重点之一。
+由于实数乘法满足交换律，式\eqref{eq:bg_distmult}中交换头尾实体不会改变分数，即 $s(h,r,t)=s(t,r,h)$。DistMult 因此无法通过评分区分关系的两个方向。为克服这一限制，ComplEx 引入复数嵌入，并取头实体、关系与尾实体共轭三线性乘积的实部\cite{trouillon2016complex}：
+\begin{equation}
+    s_{\mathrm{ComplEx}}(h,r,t)
+    =\operatorname{Re}\left(\sum_{j=1}^{d_e}
+      e_{h,j}r_j\overline{e_{t,j}}\right).
+    \label{eq:bg_complex}
+\end{equation}
+其中，$\overline{e_{t,j}}$ 表示复共轭，$\operatorname{Re}(\cdot)$ 表示实部。共轭运算使头尾角色不再可直接交换，从而能够为非对称关系提供不同方向的评分。该模型在保持逐维计算形式的同时扩展了可表示的关系类型。
 
+TuckER 采用共享核心张量组织三元组的多线性交互\cite{TuckER_Balazevic_2019}：
+\begin{equation}
+    s_{\mathrm{TuckER}}(h,r,t)
+    =\mathcal{W}\times_1\mathbf{e}_h
+      \times_2\mathbf{r}\times_3\mathbf{e}_t,
+\end{equation}
+其中，$\mathcal{W}\in\mathbb{R}^{d_e\times d_r\times d_e}$，$\times_n$ 表示在第 $n$ 个模上的张量收缩。关系向量与共享核心共同决定头尾实体的交互方式，使不同关系能够共享部分统计信息。
 
-\subsection{时间基函数}
+在上述评分模型的基础上，神经网络还可用于进一步编码实体、关系或查询表示。ConvE 使用卷积与非线性变换提取查询特征，再与候选尾实体进行内积匹配\cite{dettmers2018conve}。CompGCN 通过包含关系信息的图消息传递更新实体表示，再由解码器评分\cite{vashishth2020composition}。在这类方法中，编码器负责聚合信息，评分函数负责判断候选三元组的可信度。
 
-\subsubsection{时域方法特有的展开函数}
+% 可选扩充（暂不进入正文）：将上段展开为独立的 2.2.3 小节。
+% \subsection{神经网络编码模型}
+% ConvE：说明头实体与关系嵌入的重排、拼接、卷积交互及候选实体评分。
+% CompGCN：从消息传递出发，说明关系表示如何参与邻域聚合，以及编码器与评分函数的分工。
+% 若后续方法或基线分析确有需要，再补充各自的核心公式与示意图；避免扩展为完整的图神经网络综述。
+% 文献沿用 dettmers2018conve、vashishth2020composition；正式添加时替换上段，避免重复。
 
-\subsubsection{频域方法特有的展开函数}
+\section{预训练语言模型及其架构}
 
-\section{入射波}
+知识图谱嵌入主要依据已观测三元组学习实体和关系表示。对于连接较少的长尾实体，可用于训练表示的结构信息相对有限。预训练语言模型能够编码实体名称、描述和关系文本，并利用预训练阶段获得的语言语义补充图结构之外的信息。文本信息不能替代关系结构，但为三元组判别、候选实体匹配和目标实体生成提供了另一类输入信号。为说明这些方法如何用于知识图谱补全，本节先介绍 Transformer 的注意力机制与基本架构，再说明 BERT、RoBERTa 和 T5 的结构特点，最后分析预训练语言模型在知识图谱补全中的典型应用方式。
+\subsection{Transformer 架构与注意力机制}
 
-如图\ref{picb}和图\ref{picc}所示分别给出了参数$E_0=\hat{x}$，$a_n=-\hat{z}$，$f_0=250MHz$，$f_w=50MHz$，$t_w=4.2\sigma$时，调制高斯脉冲的时域与频域归一化波形图。
+注意力机制根据查询与各位置键之间的相关性，对对应的值向量进行加权汇集。设查询序列、键序列和值序列分别表示为 $\mathbf{X}_Q$、$\mathbf{X}_K$ 和 $\mathbf{X}_V$，线性投影得到
+\begin{equation}
+    \mathbf{Q}=\mathbf{X}_Q\mathbf{W}^{Q},\quad
+    \mathbf{K}=\mathbf{X}_K\mathbf{W}^{K},\quad
+    \mathbf{V}=\mathbf{X}_V\mathbf{W}^{V}.
+\end{equation}
+其中，$\mathbf{W}^{Q}$、$\mathbf{W}^{K}$ 和 $\mathbf{W}^{V}$ 分别为生成查询、键和值的可学习投影矩阵。
+缩放点积注意力定义为\cite{vaswani2017attention}
+\begin{equation}
+    \operatorname{Attn}(\mathbf{Q},\mathbf{K},\mathbf{V})
+    =\operatorname{softmax}\left(
+      \frac{\mathbf{Q}\mathbf{K}^{\top}}{\sqrt{d_k}}+\mathbf{M}\right)\mathbf{V},
+    \label{eq:bg_attention}
+\end{equation}
+其中，$d_k$ 为查询和键的维度，$\mathbf{M}$ 为注意力掩码。矩阵 $\mathbf{Q}\mathbf{K}^{\top}$ 给出查询位置与键位置之间的相关性，Softmax 将其转化为权重，再对 $\mathbf{V}$ 中的值向量加权求和。自注意力令 $\mathbf{X}_Q=\mathbf{X}_K=\mathbf{X}_V$，使同一序列中的位置相互交换信息；交叉注意力则令查询来自解码器，键和值来自编码器输出，用于将输入信息传递给解码过程。
 
-\begin{figure}[h]
-\subfloat[]{
-	\label{picb}
-	\includegraphics[width=7.3cm]{picb.pdf}
-}
-\subfloat[]{
-	\label{picc}
-	\includegraphics[width=6.41cm]{picc.pdf}
-}
-\caption{调制高斯脉冲时域与频率波形，时域阻抗元素的存储技术也是时间步进算法并行化的关键技术之一。(a)调制高斯脉冲信号的时域波形；(b)调制高斯脉冲信号的频域波形}
-\label{fig1}
+多头注意力在不同投影子空间内并行执行上述计算：
+\begin{align}
+    \operatorname{head}_a
+      &=\operatorname{Attn}(\mathbf{X}_Q\mathbf{W}_a^Q,
+         \mathbf{X}_K\mathbf{W}_a^K,\mathbf{X}_V\mathbf{W}_a^V),\\
+    \mathbf{A}
+      &=\operatorname{Concat}(\operatorname{head}_1,\ldots,
+         \operatorname{head}_{A}),\\
+    \mathbf{O}
+      &=\mathbf{A}\mathbf{W}^{O}
+       =\operatorname{MHA}(\mathbf{X}_Q,\mathbf{X}_K,\mathbf{X}_V).
+    \label{eq:bg_mha}
+\end{align}
+其中，$\mathbf{W}_a^Q$、$\mathbf{W}_a^K$ 和 $\mathbf{W}_a^V$ 为第 $a$ 个注意力头的可学习投影矩阵，$\mathbf{A}$ 为各注意力头输出的拼接结果，$\mathbf{W}^{O}$ 为输出投影矩阵，$\mathbf{O}$ 为多头注意力的最终输出。当三个输入相同时，下文简写为 $\operatorname{MHA}(\mathbf{X})$。前馈神经网络对每个词元位置独立执行相同的非线性变换：
+\begin{equation}
+    \operatorname{FFN}(\mathbf{x})
+    =\phi(\mathbf{x}\mathbf{W}_1+\mathbf{b}_1)\mathbf{W}_2+\mathbf{b}_2.
+    \label{eq:bg_ffn}
+\end{equation}
+其中，$\mathbf{W}_1$ 和 $\mathbf{W}_2$ 为两层线性变换的可学习权重矩阵，$\mathbf{b}_1$ 和 $\mathbf{b}_2$ 为对应的偏置向量，$\phi(\cdot)$ 为非线性激活函数。
+多头注意力负责位置之间的信息交互，前馈网络负责变换各位置的特征。Transformer 将二者与残差连接和层归一化组合成可重复堆叠的层，并通过注意力掩码及交叉注意力形成不同架构。
+
+仅编码器模型由 $N$ 层编码器堆叠而成。以第 $\ell$ 层输入 $\mathbf{X}^{(\ell-1)}$ 为例，其计算可写为
+\begin{align}
+    \mathbf{U}^{(\ell)}
+      &=\operatorname{LayerNorm}\!\left(
+        \mathbf{X}^{(\ell-1)}+
+        \operatorname{MHA}(\mathbf{X}^{(\ell-1)})\right),\\
+    \mathbf{X}^{(\ell)}
+      &=\operatorname{LayerNorm}\!\left(
+        \mathbf{U}^{(\ell)}+\operatorname{FFN}(\mathbf{U}^{(\ell)})\right).
+    \label{eq:bg_encoder_layer}
+\end{align}
+其中，$\mathbf{U}^{(\ell)}$ 为自注意力输出经过残差连接和层归一化后的中间状态，$\mathbf{X}^{(\ell)}$ 为前馈神经网络处理后的第 $\ell$ 层输出。
+编码器自注意力通常允许每个有效词元访问前后位置，因此输出是包含双向上下文的隐藏状态序列。BERT 和 RoBERTa 采用这一结构。在知识图谱补全中，KG-BERT 使用编码器联合处理三元组文本，SimKGC 使用编码器分别生成查询和候选实体表示。
+
+仅解码器模型由带因果掩码的解码器层堆叠而成。令 $\operatorname{MHA}_{\mathrm{causal}}$ 表示式\eqref{eq:bg_attention}中屏蔽后续位置的自注意力，则
+\begin{align}
+    \mathbf{U}^{(\ell)}
+      &=\operatorname{LayerNorm}\!\left(
+        \mathbf{Y}^{(\ell-1)}+
+        \operatorname{MHA}_{\mathrm{causal}}(\mathbf{Y}^{(\ell-1)})\right),\\
+    \mathbf{Y}^{(\ell)}
+      &=\operatorname{LayerNorm}\!\left(
+        \mathbf{U}^{(\ell)}+\operatorname{FFN}(\mathbf{U}^{(\ell)})\right).
+    \label{eq:bg_decoder_only_layer}
+\end{align}
+其中，$\mathbf{U}^{(\ell)}$ 为因果自注意力处理后的中间状态，$\mathbf{Y}^{(\ell)}$ 为第 $\ell$ 层解码器的最终输出。
+因果掩码使当前位置只能利用自身及此前词元，模型据此预测下一个词元并逐步扩展序列。这类结构适合自回归生成；用于知识图谱补全时，还需将生成文本约束或映射到合法实体。
+
+编码器--解码器模型先通过式\eqref{eq:bg_encoder_layer}得到输入序列表示 $\mathbf{H}_{\mathrm{enc}}$，解码器层再依次执行因果自注意力、交叉注意力和前馈网络：
+\begin{align}
+    \mathbf{U}^{(\ell)}
+      &=\operatorname{LayerNorm}\!\left(
+        \mathbf{Y}^{(\ell-1)}+
+        \operatorname{MHA}_{\mathrm{causal}}(\mathbf{Y}^{(\ell-1)})\right),\\
+    \mathbf{V}^{(\ell)}
+      &=\operatorname{LayerNorm}\!\left(
+        \mathbf{U}^{(\ell)}+
+        \operatorname{MHA}(\mathbf{U}^{(\ell)},
+        \mathbf{H}_{\mathrm{enc}},\mathbf{H}_{\mathrm{enc}})\right),\\
+    \mathbf{Y}^{(\ell)}
+      &=\operatorname{LayerNorm}\!\left(
+        \mathbf{V}^{(\ell)}+\operatorname{FFN}(\mathbf{V}^{(\ell)})\right).
+    \label{eq:bg_encoder_decoder_layer}
+\end{align}
+其中，$\mathbf{U}^{(\ell)}$ 和 $\mathbf{V}^{(\ell)}$ 分别为因果自注意力与交叉注意力处理后的中间状态，$\mathbf{Y}^{(\ell)}$ 为前馈神经网络处理后的第 $\ell$ 层输出。交叉注意力以解码器状态作为查询，以编码器输出作为键和值，使输出词元同时依赖已生成内容和输入序列。T5 采用这一结构，KGT5 据此编码头实体与关系文本并生成目标实体文本。三类架构的模块组成与信息流如图\ref{fig:bg_transformer_architectures}所示。
+
+% 修订后的图像生成 prompt：
+% 绘制一幅中文学术论文风格的 Transformer 三类架构对比图，白色背景，横向三栏布局，标题依次为“仅编码器（Encoder-only）”“仅解码器（Decoder-only）”“编码器--解码器（Encoder-Decoder）”。必须准确表现每一层的模块顺序和跨模块信息流，不得用“编码器”或“解码器”方框替代层内的具体子层。
+% 左栏：底部“输入序列”进入由 N 个相同编码器层组成的堆栈。放大展示一个编码器层，模块自下而上严格为“双向多头自注意力”“残差连接与层归一化”“前馈网络”“残差连接与层归一化”。顶部输出“上下文表示 / 分类或向量表示”。用全连接注意力矩阵表示任意有效词元可访问前后位置。标注代表模型“BERT、RoBERTa”，KGC 对应“KG-BERT、SimKGC”。
+% 中栏：底部“起始词元 / 已生成词元”进入由 N 个相同解码器层组成的堆栈。放大展示一个仅解码器层，模块自下而上严格为“因果多头自注意力”“残差连接与层归一化”“前馈网络”“残差连接与层归一化”。用下三角注意力矩阵表示当前位置只能访问自身及此前词元。顶部按顺序输出“词元 1 → 词元 2 → …”，标注“自回归生成”和“无独立编码器”。
+% 右栏：左侧“输入序列”进入由 N 个编码器层组成的完整编码器堆栈，编码器层结构与左栏一致；右侧“已生成词元”进入由 N 个解码器层组成的堆栈。放大展示一个编码器--解码器中的解码器层，模块自下而上严格为“因果多头自注意力”“残差连接与层归一化”“交叉注意力”“残差连接与层归一化”“前馈网络”“残差连接与层归一化”。从完整编码器堆栈的顶部输出引出横向箭头，连接到解码器层的“交叉注意力”，不得从编码器层内部中间模块引出。顶部输出“条件生成序列”。标注代表模型“T5”，KGC 对应“KGT5”。
+% 三栏底部分别标注“双向表示学习”“无独立编码器的自回归生成”“编码输入后的条件生成”。编码器使用克制的蓝色，解码器使用橙色，交叉注意力使用绿色，残差连接与层归一化使用中性灰色。模块采用直角或小圆角矩形，不使用渐变、阴影、三维效果或装饰图标。所有箭头方向明确，中文字体统一，避免英文说明和中文说明混杂。画面比例约 16:9，保证缩放到硕士论文单栏宽度后仍可辨认模块名称。
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.90\textwidth]{pic/ch2/Transformer.pdf}
+    \caption{Transformer 三类基本架构及其信息流动方式}
+    \label{fig:bg_transformer_architectures}
 \end{figure}
 
-时域阻抗元素的存储技术\citing{xiao2012yi}也是时间步进算法并行化的关键技术之一，采用合适的阻抗元素存储方式可以很大的提高并行时间步进算法的计算效率。
+标准稠密注意力需要构造查询位置与键位置之间的相关性矩阵。自注意力序列长度为 $L$ 时，该矩阵大小为 $L\times L$，因此加入邻居、路径或更长实体描述会增加计算和存储开销。
+三类架构的信息可见范围由掩码方式和模块连接共同决定。仅编码器模型通常只屏蔽填充位置，并不施加因果掩码，因此实体描述中的每个有效词元都能利用前后文，适合形成实体表示或进行语义匹配。仅解码器模型以及编码器--解码器的解码端使用因果掩码，保证第 $i$ 个位置不能读取尚未生成的后续词元，从而避免自回归训练中的未来信息泄露。编码器--解码器结构的编码端仍使用双向上下文，解码端则通过交叉注意力在生成过程中读取完整输入表示。这些差异使编码器结构更适合判别与匹配，带因果掩码的解码器结构更适合将知识图谱补全表示为条件序列生成。
+\subsection{BERT、RoBERTa 与 T5}
 
-\section{本章小结}
-本章首先从时域麦克斯韦方程组出发推导得到了时域电场、磁场以及混合场积分方程。
+BERT 首先将文本切分为子词词元，并将词元转换为词表中的索引，再通过嵌入查表获得对应的稠密词元向量\cite{devlin2019bert}。模型还在序列起始位置加入 $\mathrm{[CLS]}$，并使用 $\mathrm{[SEP]}$ 分隔输入片段或标记片段结束。每个输入位置的初始向量由词元嵌入、位置嵌入及句段嵌入相加得到，即
+\begin{equation}
+    \mathbf{x}_i=\mathbf{e}^{\mathrm{tok}}_i+
+    \mathbf{e}^{\mathrm{pos}}_i+\mathbf{e}^{\mathrm{seg}}_i.
+\end{equation}
+词元嵌入提供词汇表示，可学习的位置嵌入记录词元位置，句段嵌入用于区分输入片段。三类嵌入相加后经过层归一化与 Dropout，得到编码器的初始隐藏状态 $\mathbf{H}^{(0)}$。随后，多层 Transformer 编码器结合上下文更新各位置表示，使同一词元在不同文本中获得不同的隐藏状态。在知识图谱补全中，模型可以从实体名称、描述和关系文本中提取文本信息，并利用这些信息完成三元组判别、候选匹配或实体生成。
+
+BERT 的每层计算遵循式\eqref{eq:bg_encoder_layer}所示的编码器结构，其中多头自注意力聚合其他有效位置的信息，前馈网络分别变换每个位置的向量，并采用 GELU 激活。填充位置通过注意力掩码排除，Dropout 用于训练阶段并在推理时关闭。
+
+经过多层编码后，模型输出与输入位置对应的隐藏状态序列 $\mathbf{H}\in\mathbb{R}^{L\times d}$。若需要固定维度的实体或查询向量，还需选取 $\mathrm{[CLS]}$ 位置或对有效词元进行池化。词元上下文表示与整段文本的向量表示因此对应两个计算步骤。
+
+BERT 的输入嵌入与上下文编码过程如图\ref{fig:bg_bert_encoding}所示。
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.90\textwidth]{pic/ch2/bert1.pdf}
+    \caption{BERT 的输入嵌入与上下文编码过程}
+    \label{fig:bg_bert_encoding}
+\end{figure}
+
+掩码语言模型（Masked Language Model，MLM）是 BERT 的主要预训练目标之一。设被选中进行预测的位置集合为 $\mathcal{M}$，扰动后的输入为 $\widetilde{x}$，则其目标可以写为
+\begin{equation}
+    \mathcal{L}_{\mathrm{MLM}}
+    =-\sum_{i\in\mathcal{M}}\log p_{\theta}(x_i\mid\widetilde{x}).
+\end{equation}
+其中，$\theta$ 表示语言模型参数，$p_{\theta}$ 表示模型给出的词元预测概率。模型需要依据双向上下文恢复原始词元。原始 BERT 还使用下一句预测（Next Sentence Prediction，NSP）目标：给定两个文本片段，模型通过二分类判断第二个片段是否为第一个片段在语料中的真实后续片段。BERT-base 采用 12 层编码器、768 维隐藏状态及 12 个注意力头，为三元组判别和实体文本编码提供了常用基础架构。
+
+RoBERTa 沿用 BERT 的编码器结构，并调整预训练过程，包括使用更多训练数据和更充分的训练、采用动态掩码以及移除 NSP 目标\cite{liu2019roberta}。
+
+T5 采用编码器--解码器 Transformer，并将不同任务统一为文本到文本的形式\cite{raffel2020t5}。编码器生成输入序列的双向表示，解码器通过因果自注意力和交叉注意力逐词元生成输出。这种结构允许知识图谱补全直接以头实体和关系文本为输入，以目标实体文本为输出，从而将候选排序转变为生成式任务。
+
+\subsection{预训练语言模型在知识图谱补全中的应用方式}
+
+根据查询与候选的编码方式，预训练语言模型可将知识图谱补全建模为三元组判别、查询与候选匹配或目标实体生成。三种方式分别以 KG-BERT、SimKGC 和 KGT5 为代表，使用的主干结构和评分过程不同。
+
+\textbf{（1）交叉编码与三元组判别。}KG-BERT 将头实体、关系和尾实体的文本共同输入 BERT。对三元组 $(h,r,t)$，其输入可表示为\cite{yao2019kgbert}
+\begin{equation}
+    x_{hrt}=[\mathrm{[CLS]};D_h;\mathrm{[SEP]};D_r;
+      \mathrm{[SEP]};D_t;\mathrm{[SEP]}].
+\end{equation}
+其中，分号表示序列串接。模型利用完整三元组中的词元交互生成分类或评分特征，用于判断候选事实的可信度。候选尾实体发生变化时，模型需要重新组织输入并执行编码，因此全实体排序需要对各候选分别计算分数。
+
+\textbf{（2）双编码器匹配。}双编码器将查询与候选实体分开编码，形式上可表示为
+\begin{equation}
+    \mathbf{q}_{hr}=\operatorname{Encoder}_{\theta_q}(D_h,D_r),\qquad
+    \mathbf{z}_t=\operatorname{Encoder}_{\theta_e}(D_t).
+    \label{eq:bg_biencoder}
+\end{equation}
+其中，$\operatorname{Encoder}_{\theta_q}$ 和 $\operatorname{Encoder}_{\theta_e}$ 分别表示参数为 $\theta_q$ 和 $\theta_e$ 的查询编码器与实体编码器，两者可以共享参数，也可以独立训练。若输出的词元隐藏状态为 $\mathbf{H}=[\mathbf{h}_1,\ldots,\mathbf{h}_L]^{\top}$，可通过带掩码的平均池化获得序列表示：
+\begin{equation}
+    \mathbf{z}=\frac{\sum_{i=1}^{L}m_i\mathbf{h}_i}
+                       {\sum_{i=1}^{L}m_i},
+    \qquad m_i\in\{0,1\}.
+    \label{eq:bg_pooling}
+\end{equation}
+其中，有效词元对应 $m_i=1$，填充位置对应 $m_i=0$；特殊词元是否参与池化由具体实现确定。平均池化将变长序列压缩为固定维度向量，便于候选检索。
+
+对非零向量采用 $L_2$ 归一化后，余弦相似度等于归一化向量的内积：
+\begin{equation}
+    \bar{\mathbf{q}}_{hr}=\frac{\mathbf{q}_{hr}}{\|\mathbf{q}_{hr}\|_2},\quad
+    \bar{\mathbf{z}}_t=\frac{\mathbf{z}_t}{\|\mathbf{z}_t\|_2},\quad
+    s(h,r,t)=\bar{\mathbf{q}}_{hr}^{\top}\bar{\mathbf{z}}_t.
+    \label{eq:bg_cosine}
+\end{equation}
+SimKGC 使用 BERT 分别编码头实体与关系构成的查询以及候选尾实体，并以余弦相似度进行匹配\cite{wang2022simkgc}。模型通过对比学习拉近正确查询--实体对，同时利用批内负样本、历史批次负样本和自身负样本增强候选区分能力，具体训练目标将在后文的对比学习部分说明。推理前可以预先计算并缓存候选实体向量，每个查询只需执行一次查询编码，再与缓存向量进行匹配。相比对每个候选重新执行联合编码的交叉编码器，这种方式减少了重复的 BERT 前向计算，提高了全实体排序的计算效率。
+
+双编码器分别将查询文本和候选文本压缩为固定维度向量，双方的交互发生在向量匹配阶段，缺少交叉编码器中的词元级联合建模。图结构、邻域上下文或提示表示可以在文本向量之外补充关系约束与图谱上下文，为候选区分提供更多信息。
+
+\textbf{（3）序列生成。}KGT5 使用 T5 的编码器--解码器结构，将知识图谱补全转化为序列到序列任务\cite{saxena2022sequence}。给定尾实体预测查询，模型编码头实体和关系的文本，并由解码器自回归生成目标尾实体的文本；头实体预测则通过相应的逆向查询处理。生成式方法直接生成目标实体文本，省去了对全部候选实体的逐一编码。生成结果随后需要映射到图谱中的实体标识，同名实体、多词元名称和候选范围都会影响映射结果。根据候选实体名称构建前缀树，可以在束搜索过程中将输出限制在合法实体名称范围内。
+
+三种应用方式的输入组织、评分过程与计算特点见图\ref{fig:bg_encoder_comparison}和表\ref{tab:bg_plm_modes}。
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.90\textwidth]{pic/ch2/交叉vs双.pdf}
+    \caption{交叉编码器与双编码器的计算方式对照}
+    \label{fig:bg_encoder_comparison}
+\end{figure}
+
+\begin{table}[htbp]
+    \centering
+    \caption{预训练语言模型用于知识图谱补全的典型方式}
+    \label{tab:bg_plm_modes}
+    \small
+    \begin{tabular}{p{0.14\textwidth}p{0.21\textwidth}p{0.17\textwidth}p{0.20\textwidth}p{0.20\textwidth}}
+        \toprule
+        方式 & 代表方法与主干结构 & 输入与预测 & 主要计算特点 & 需要处理的问题 \\
+        \midrule
+        交叉编码 & KG-BERT，BERT 编码器 & 联合编码三元组并评分 & 查询与候选交互充分 & 全实体排序中的重复编码 \\
+        双编码器 & SimKGC，BERT 编码器 & 分别编码查询和实体并匹配 & 候选表示可缓存 & 分离编码下的候选区分能力 \\
+        序列生成 & KGT5，T5 编码器--解码器 & 编码查询并生成实体文本 & 直接生成目标实体文本 & 实体标识映射与解码约束 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
