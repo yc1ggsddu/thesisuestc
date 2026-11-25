@@ -1,34 +1,425 @@
+% 结果溯源：本章正式主结果对应小论文的w/o Gate配置；该配置名不作为本章方法名称。
+% TODO(author verification): 文本扰动图暂用已有DLDA记录，待作者替换。
+\chapter{基于预对齐结构提示的结构—语义协同知识图谱补全方法}
+\label{chap:prealign}
 
-\chapter{时域积分方程数值方法研究}
+针对知识图谱嵌入与预训练语言模型表示空间不一致、结构信息难以与文本语义充分结合的问题，本章提出基于预对齐结构提示的结构—语义协同知识图谱补全方法。该方法以实体和关系的名称语义为参照，对知识图谱嵌入进行预对齐，并将对齐后的表示转换为软提示，与实体描述及关系文本共同输入双编码器。在此基础上，通过分区池化获得结构表征与语义表征，并利用对比学习和结构辅助监督联合优化模型。在WN18RR与FB15k-237上进行性能对比和消融实验，验证预对齐结构提示在实体预测任务中的有效性。
 
-\section{时域积分方程时间步进算法的阻抗元素精确计算}
-时域积分方程时间步进算法的阻抗元素直接影响算法的后时稳定性，因此阻抗元素的计算是算法的关键之一，采用精度高效的方法计算时域阻抗元素是时域积分方程时间步进算法研究的重点之一。
+\section{引言}
 
-\subsection{时域积分方程时间步进算法产生的阻抗矩阵的特征}
-由于时域混合场积分方程是时域电场积分方程与时域磁场积分方程的线性组合，因此时域混合场积分方程时间步进算法的阻抗矩阵特征与时域电场积分方程时间步进算法的阻抗矩阵特征相同。时域阻抗元素的存储技术也是关键技术之一，采用合适的阻抗元素存储方式可以提高并行算法的计算效率。
+基于预训练语言模型的知识图谱补全方法通过实体名称、描述和关系文本学习实体之间的语义联系。其中，双编码器分别表示头实体—关系查询和候选实体，再根据两者的相似度完成预测，在利用文本信息的同时保留了较高的候选检索效率\cite{wang2022simkgc}。然而，文本相似性与图谱中的关系联系并不完全一致。具有相近描述的实体可能承担不同的关系角色，仅依赖文本语义容易将主题相关但不满足查询关系的实体排在前列。
 
-\subsection{数值算例与分析}
-由于时域混合场积分方程是时域电场积分方程与时域磁场积分方程的线性组合，因此时域混合场积分方程时间步进算法的阻抗矩阵特征与时域电场积分方程时间步进算法的阻抗矩阵特征相同。
+知识图谱嵌入能够从已知三元组中学习实体与关系的结构约束，为文本表示提供补充。以RotatE为例，该方法通过复数空间中的旋转变换刻画头尾实体之间的关系模式\cite{sun2019rotate}。但是，知识图谱嵌入与语言模型词元表示分别由结构预测和语言建模目标学习，两者在表示空间和优化目标上存在差异。直接通过维度映射将结构嵌入转换为提示，并不能保证生成的提示与文本输入具有良好的语义相容性。
 
-\begin{algorithm}[H]
-    \KwData{this text}
-    \KwResult{how to write algorithm with \LaTeX2e}
-    initialization\;
-    \While{not at end of this document}{
-        read current\;
-        \eIf{understand}{
-            go to next section\;
-            current section becomes this one\;
-        }{
-            go back to the beginning of current section\;
-        }
-    }
-    \caption{How to wirte an algorithm.}
-\end{algorithm}
+此外，结构信息的引入不仅涉及输入形式，还涉及其在编码过程中的保留。CSProm-KG通过条件提示将实体和关系表示引入语言模型\cite{chen2023cspromkg}，StAR通过结构相关的训练目标约束文本表示\cite{wang2021structure}，体现了输入构造与监督学习两种不同的融合途径。如果仅在输入端加入结构向量，而缺少相应的表示组织与训练约束，结构信息仍可能难以转化为对实体预测有效的特征。因此，需要将结构提示的构造、结构与语义的协同编码以及训练监督作为一个完整过程加以设计。
 
-由于时域混合场积分方程是时域电场积分方程与时域磁场积分方程的线性组合，因此时域混合场积分方程时间步进算法的阻抗矩阵特征与时域电场积分方程时间步进算法的阻抗矩阵特征相同。
+为此，本章提出预对齐结构提示模型。首先，以冻结的名称词嵌入为语义参照，将结构嵌入映射并预对齐到语言模型输入空间；其次，根据头实体、关系和候选实体的对齐表示生成软提示，在查询编码器与实体编码器中分别完成结构信息与文本信息的交互；最后，对提示位置和文本位置进行分区池化，将两类表征融合后用于实体排序，并通过结构辅助目标约束提示侧表示。该方法使结构信息从输入构造到输出表示均参与补全任务，形成统一的结构—语义协同学习框架。
 
-\section{时域积分方程时间步进算法矩阵方程的求解}
+\section{结构—语义协同表示模型}
+
+\subsection{模型总体框架}
+
+模型总体框架如图\ref{fig:c3_framework}所示，由结构表示预对齐、软提示构造、协同编码和联合训练四个部分组成。沿用\ref{chap:background}的符号约定，知识图谱记为$\mathcal{G}=(\mathcal{E},\mathcal{R},\mathcal{T})$，头实体—关系查询记为$(h,r)$，候选实体记为$t$；$D_h$、$D_r$与$D_t$分别表示相应的文本信息。模型学习查询表示$\mathbf{q}_{hr}$和候选实体表示$\mathbf{z}_t$，并通过评分函数$s(h,r,t)$衡量候选三元组的合理性。
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.97\textwidth]{ch34/prealign_framework.pdf}
+\caption{预对齐结构提示模型的总体框架}
+\label{fig:c3_framework}
+\end{figure}
+
+模型首先从知识图谱嵌入中获取实体与关系的结构信息，并利用名称语义进行预对齐。查询侧适配器将头实体与关系的对齐表示共同转换为提示序列，实体侧适配器根据候选实体的对齐表示生成实体提示。头实体提示、关系提示及其文本进入查询编码器$\mathrm{BERT}_{hr}$，候选实体提示及其文本进入实体编码器$\mathrm{BERT}_t$。在每个编码器内部，提示词元与文本词元共同参与自注意力计算，使图谱结构与文本语义在上下文建模过程中相互作用。
+
+编码后，模型分别聚合提示位置和文本位置的隐藏状态，形成结构表征与语义表征，再融合得到查询与候选实体的最终表示。训练过程包含两个相互配合的目标：对比目标直接优化查询与正确候选之间的匹配关系，结构辅助目标则约束提示侧表示的实体—关系组合。推理时，模型依据查询与候选实体的相似度进行排序，从而完成缺失实体预测。
+
+\subsection{结构表示预对齐与软提示构造}
+
+结构提示需要与语言模型中的词元向量共同参与编码。为建立两类输入之间的语义联系，模型在生成提示之前引入预对齐模块PreAlign。该模块借鉴KG-Adapter中知识图谱表示与子词表示相结合的设计\cite{tian2024kgadapter}，以名称词嵌入为参照，使结构表示在进入语言模型之前包含相应的词汇语义信息。
+
+设头实体、关系和尾实体的嵌入分别为$\mathbf{e}_h\in\mathbb{R}^{d_e}$、$\mathbf{r}\in\mathbb{R}^{d_r}$和$\mathbf{e}_t\in\mathbb{R}^{d_e}$，其中$d_e$、$d_r$分别为实体与关系的嵌入维度。通过单层投影将其转换到语言模型隐藏维度$d$：
+\begin{equation}
+    \mathbf{u}_h=P_e(\mathbf{e}_h),\qquad
+    \mathbf{u}_r=P_r(\mathbf{r}),\qquad
+    \mathbf{u}_t=P_e(\mathbf{e}_t).
+    \label{eq:c3_projection}
+\end{equation}
+其中，$P_e:\mathbb{R}^{d_e}\rightarrow\mathbb{R}^{d}$、$P_r:\mathbb{R}^{d_r}\rightarrow\mathbb{R}^{d}$分别为实体与关系的投影函数。式\eqref{eq:c3_projection}解决维度匹配问题，后续预对齐进一步引入名称语义，为软提示提供与语言模型输入相联系的表示基础。
+
+对任一实体或关系$x$，设名称包含$\ell_x$个词元，$w_j^x$为第$j$个词元，$E_0$为冻结的词嵌入查找函数，则名称表示为
+\begin{equation}
+    \mathbf{w}_x=\frac{1}{\ell_x}\sum_{j=1}^{\ell_x}E_0(w_j^x).
+    \label{eq:c3_name_embedding}
+\end{equation}
+式\eqref{eq:c3_name_embedding}以词嵌入均值概括实体或关系名称的语义。名称用于建立结构与词汇语义的初步联系，实体描述等更丰富的文本信息则通过后续编码器建模，两者承担不同层次的作用。
+
+结构向量与名称表示通过可学习标量进行组合：
+\begin{equation}
+\begin{aligned}
+    \alpha&=\sigma(\hat\alpha),\\
+    \widetilde{\mathbf{u}}_h&=\alpha\mathbf{u}_h+(1-\alpha)\mathbf{w}_h,\\
+    \widetilde{\mathbf{u}}_r&=\alpha\mathbf{u}_r+(1-\alpha)\mathbf{w}_r,\\
+    \widetilde{\mathbf{u}}_t&=\alpha\mathbf{u}_t+(1-\alpha)\mathbf{w}_t.
+\end{aligned}
+    \label{eq:c3_prealign}
+\end{equation}
+其中，$\sigma$为Sigmoid函数，$\hat\alpha$是实体与关系共享的可学习参数。式\eqref{eq:c3_prealign}使模型能够在训练中调整结构嵌入与名称语义的比例，获得用于提示生成的对齐表示。预对齐保留了知识图谱嵌入提供的关系信息，同时利用语言模型已有的词汇表示减轻两类输入之间的差异。
+
+随后，模型将对齐表示转换为连续提示。以$\mathbf{P}$表示提示矩阵，$m$表示提示长度，查询侧与实体侧的提示分别为
+\begin{equation}
+\begin{aligned}
+    \relax[\mathbf{P}_h;\mathbf{P}_r]
+       &=\operatorname{reshape}\!\left(A_{hr}([\widetilde{\mathbf{u}}_h;
+           \widetilde{\mathbf{u}}_r]),2m,d\right),\\
+    \mathbf{P}_t&=\operatorname{reshape}\!\left(A_t(\widetilde{\mathbf{u}}_t),m,d\right).
+\end{aligned}
+    \label{eq:c3_adapters}
+\end{equation}
+式\eqref{eq:c3_adapters}中的$A_{hr}$与$A_t$为参数独立的两层MLP，隐藏层采用GELU激活。查询侧将头实体和关系的对齐表示沿特征维拼接，并分别生成$m$个头实体提示与$m$个关系提示；实体侧只根据候选实体生成$m$个提示。输出矩阵$\mathbf{P}_h,\mathbf{P}_r,\mathbf{P}_t\in\mathbb{R}^{m\times d}$沿序列维组织。与直接学习一组全局共享提示不同\cite{lester2021power}，上述提示内容由具体的实体与关系条件决定。
+
+令$E(D_h)$、$E(D_r)$和$E(D_t)$表示对应文本的词元嵌入序列，则输入构造为
+\begin{equation}
+\begin{aligned}
+    \mathbf{X}_{hr}=[&\mathrm{[CLS]};\mathbf{P}_h;E(D_h);\mathrm{[SEP]};\\
+                     &\mathbf{P}_r;E(D_r);\mathrm{[SEP]}],\\
+    \mathbf{X}_t=[&\mathrm{[CLS]};\mathbf{P}_t;E(D_t);\mathrm{[SEP]}].
+\end{aligned}
+    \label{eq:c3_sequences}
+\end{equation}
+式\eqref{eq:c3_sequences}中的分号表示序列串接，特殊词元在计算时使用其对应嵌入。头实体提示位于起始标记之后，关系提示位于第一处分隔标记之后，使两类提示与相应文本相邻。查询输入同时包含头实体与关系信息，候选输入只依赖实体自身，适合后续独立编码和候选表示复用。
+
+\subsection{结构与语义协同编码}
+
+查询序列和候选实体序列分别输入对应BERT编码器：
+\begin{equation}
+    \mathbf{H}_{hr}=\mathrm{BERT}_{hr}(\mathbf{X}_{hr}),\qquad
+    \mathbf{H}_{t}=\mathrm{BERT}_{t}(\mathbf{X}_{t}).
+    \label{eq:c3_encoding}
+\end{equation}
+在式\eqref{eq:c3_encoding}中，每侧编码器内部的提示词元与文本词元通过自注意力交换信息。结构条件由提示进入编码过程，实体描述及关系文本则提供上下文语义。模型在统一隐藏空间中完成两类信息的交互，为其协同参与实体预测提供基础。
+
+为分别提取两类信息，模型采用分区池化。设$\mathcal{I}_{p}^{a}$与$\mathcal{I}_{x}^{a}$分别表示编码器$a\in\{hr,t\}$中的提示位置集合与文本位置集合，定义平均池化算子
+\begin{equation}
+    \operatorname{Pool}(\mathbf{H},\mathcal{I})
+       =\frac{1}{|\mathcal{I}|}\sum_{i\in\mathcal{I}}\mathbf{H}_i.
+    \label{eq:c3_pool_operator}
+\end{equation}
+利用式\eqref{eq:c3_pool_operator}，分别得到查询侧与候选实体侧的结构表征和语义表征：
+\begin{equation}
+\begin{aligned}
+    \mathbf{q}_{hr}^{\mathrm{str}}&=\operatorname{Pool}(\mathbf{H}_{hr},\mathcal{I}_{p}^{hr}),&
+    \mathbf{q}_{hr}^{\mathrm{sem}}&=\operatorname{Pool}(\mathbf{H}_{hr},\mathcal{I}_{x}^{hr}),\\
+    \mathbf{z}_{t}^{\mathrm{str}}&=\operatorname{Pool}(\mathbf{H}_{t},\mathcal{I}_{p}^{t}),&
+    \mathbf{z}_{t}^{\mathrm{sem}}&=\operatorname{Pool}(\mathbf{H}_{t},\mathcal{I}_{x}^{t}).
+\end{aligned}
+    \label{eq:c3_partition}
+\end{equation}
+式\eqref{eq:c3_partition}以$\mathrm{str}$和$\mathrm{sem}$分别标记结构与语义分支，四个向量均属于$\mathbb{R}^{d}$。查询侧的提示位置包含头实体与关系提示，文本位置包含头实体与关系文本；候选侧则对应候选实体的提示与文本。通过分区读取隐藏状态，模型保留两类表征的来源差异，避免在输出时直接将所有位置混合为单一向量。
+% TODO(author verification): 特殊词元与填充词元的具体掩码以最终实现为准；不复用三元组集合符号表示位置集合。
+
+模型采用均值融合构造检索表示：
+\begin{equation}
+    \mathbf{q}_{hr}=\tfrac12(\mathbf{q}_{hr}^{\mathrm{str}}+\mathbf{q}_{hr}^{\mathrm{sem}}),\qquad
+    \mathbf{z}_{t}=\tfrac12(\mathbf{z}_{t}^{\mathrm{str}}+\mathbf{z}_{t}^{\mathrm{sem}}).
+    \label{eq:c3_uniform}
+\end{equation}
+式\eqref{eq:c3_uniform}使结构分支与语义分支共同参与查询和候选实体表示的构造。两类表征的区分在池化阶段保留，融合结果则为后续相似度计算提供固定维度向量。
+
+\subsection{评分函数与联合训练}
+
+将融合后的查询与候选实体表示归一化，分别记为$\bar{\mathbf{q}}_{hr}$和$\bar{\mathbf{z}}_t$，评分函数定义为
+\begin{equation}
+\begin{aligned}
+    \bar{\mathbf{q}}_{hr}&=\frac{\mathbf{q}_{hr}}{\|\mathbf{q}_{hr}\|_2},\qquad
+    \bar{\mathbf{z}}_t=\frac{\mathbf{z}_t}{\|\mathbf{z}_t\|_2},\\
+    s(h,r,t)&=\bar{\mathbf{q}}_{hr}^{\top}\bar{\mathbf{z}}_t.
+\end{aligned}
+    \label{eq:c3_score}
+\end{equation}
+式\eqref{eq:c3_score}与式\eqref{eq:bg_cosine}保持一致，分数越高表示候选实体与当前查询越匹配。训练时采用InfoNCE对比目标\cite{oord2018cpc,wang2022simkgc}，增强正确实体与查询之间的相似度，并降低负候选的相对分数：
+\begin{equation}
+    \mathcal{L}_{\mathrm{CL}}=-\frac1B\sum_{i=1}^{B}
+    \log\frac{\exp((s(h_i,r_i,t_i^+)-\gamma)/\tau)}
+    {\exp((s(h_i,r_i,t_i^+)-\gamma)/\tau)
+       +\sum_{e\in\mathcal{N}_i}\exp(s(h_i,r_i,e)/\tau)}.
+    \label{eq:c3_main_loss}
+\end{equation}
+其中，$B$为批量大小，$t_i^+$为正确尾实体，$\mathcal{N}_i$为负候选集合，$\gamma$和$\tau$分别为正例间隔与温度。式\eqref{eq:c3_main_loss}中的负候选由批内负样本、历史批次负样本和自身负样本构成。温度参与训练，实际优化还采用系数为0.1的标签平滑\cite{szegedy2016rethinking}，式中给出未平滑形式以说明基本目标。
+
+为使结构提示的输出继续反映实体与关系之间的约束，模型设置结构辅助损失。分别对头实体提示、关系提示和尾实体提示进行池化，得到$\mathbf{h}^{p}$、$\mathbf{r}^{p}$和$\mathbf{t}^{p}$，再通过可学习映射得到KGE目标所需的表示：
+\begin{equation}
+    \widehat{\mathbf{h}}=Q_e(\mathbf{h}^{p}),\qquad
+    \widehat{\mathbf{r}}=Q_r(\mathbf{r}^{p}),\qquad
+    \widehat{\mathbf{t}}=Q_e(\mathbf{t}^{p}).
+    \label{eq:c3_aux_projection}
+\end{equation}
+将式\eqref{eq:c3_aux_projection}的输出用于RotatE结构训练目标，获得辅助损失$\mathcal{L}_{\mathrm{aux}}$。该目标的梯度经过投影和BERT编码器传播，使提示侧表示在学习文本上下文的同时受到关系结构约束。与最终融合向量上的对比监督相比，辅助目标直接作用于提示侧的实体与关系表示，二者从不同层面支持补全任务。
+% TODO(author verification): 辅助损失的负例构造及参数共享细节留待归档，不在正文补写未知实现。
+
+联合优化目标为
+\begin{equation}
+\begin{aligned}
+    \mathcal{L}&=\lambda_{\mathrm{CL}}\mathcal{L}_{\mathrm{CL}}
+                   +\lambda_{\mathrm{aux}}\mathcal{L}_{\mathrm{aux}},\\
+    \lambda_j&=\frac{\exp(\eta_j)}{\exp(\eta_{\mathrm{CL}})+\exp(\eta_{\mathrm{aux}})},
+        \quad j\in\{\mathrm{CL},\mathrm{aux}\}.
+\end{aligned}
+    \label{eq:c3_total_loss}
+\end{equation}
+式\eqref{eq:c3_total_loss}将第二章的主辅目标组合具体化为可学习的归一化权重，满足$\lambda_{\mathrm{CL}}+\lambda_{\mathrm{aux}}=1$。两个权重参数$\eta_{\mathrm{CL}}$与$\eta_{\mathrm{aux}}$均初始化为1。训练时联合更新知识图谱嵌入、语言模型、投影、适配器以及损失权重，使输入端的预对齐与输出端的结构监督共同服务于实体预测。
+
+推理阶段，首先对全部候选实体进行编码并缓存归一化表示。对于输入查询$(h,r)$，生成$\bar{\mathbf{q}}_{hr}$后，与候选矩阵执行点积计算，得到全实体排序。由于候选表示不依赖当前查询，模型无需针对每个实体重新执行查询—候选联合编码。候选缓存的存储复杂度为$O(|\mathcal{E}|d)$，单次查询的全实体相似度计算复杂度为$O(|\mathcal{E}|d)$，能够保留双编码器在候选检索方面的效率优势。
+
+\section{实验设置}
+
+本节介绍用于评价预对齐结构提示模型的数据集、评价指标、训练设置与对比方法，为后续性能对比和模块分析提供统一的实验条件。
+
+\subsection{实验数据集}
+
+本章在WN18RR和FB15k-237上验证方法性能。WN18RR来源于WordNet，实体主要对应词义概念，关系包括上下义等词汇语义联系；FB15k-237来源于Freebase，涵盖人物、地点和影视等现实世界事实\cite{dettmers2018conve,toutanova2015observed}。两者的统计信息见表\ref{tab:c3_datasets}。
+
+\begin{table}[!htbp]
+\centering
+\setstretch{1.15}
+\caption{实验数据集统计信息}
+\label{tab:c3_datasets}
+\small
+\begin{tabular}{lrrrrr}
+\toprule
+数据集 & 实体数 & 关系数 & 训练集 & 验证集 & 测试集\\
+\midrule
+WN18RR & 40,943 & 11 & 86,835 & 3,034 & 3,134\\
+FB15k-237 & 14,541 & 237 & 272,115 & 17,535 & 20,466\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+WN18RR实体规模较大、关系类型较少，训练图相对稀疏，同时不同词义实体的文本可能具有较高相似性，适合考察结构提示能否帮助区分语义接近的候选。FB15k-237的关系种类更多、训练三元组更多，实体之间的连接更为密集，可用于检验该方法在复杂关系语义和较丰富结构证据下的表现。两个数据集共同覆盖词汇语义和现实实体两种场景。
+
+\subsection{评价指标与参数设置}
+
+实验采用双向过滤排名评价，对每个测试三元组分别预测头实体和尾实体，报告合并后的MRR及Hits@1、Hits@3、Hits@10，指标定义见式\eqref{eq:bg_mrr}和式\eqref{eq:bg_hits}。过滤评估排除当前目标以外的其他已知正确实体，所有指标以百分数报告，数值越高越好。模型依据验证集表现选择，测试集用于报告最终结果。
+% TODO(author verification): 最终运行的过滤集合和并列排名实现待与配置归档对应；此处仅沿用小论文的双向过滤协议。
+
+本章模型以BERT-base为文本编码器、RotatE为知识图谱嵌入模型，在单张NVIDIA RTX 4090上训练，不启用梯度检查点。关键参数见表\ref{tab:c3_parameters}。优化器采用AdamW\cite{loshchilov2019decoupled}，预热步数为400。除表中列出的历史批次设置外，两个数据集均使用批内负例和自身负例。推理阶段沿用图邻域重排序：对训练图中位于头实体$k$跳邻域内的候选，在相似度分数上增加$\beta$。WN18RR取$k=5$，FB15k-237取$k=2$，均设$\beta=0.05$。
+
+\begin{table}[!htbp]
+\centering
+\setstretch{1.15}
+\caption{预对齐结构提示模型的主要训练参数}
+\label{tab:c3_parameters}
+\begin{tabular}{lcc}
+\toprule
+参数 & WN18RR & FB15k-237\\
+\midrule
+文本编码器 & BERT-base & BERT-base\\
+语言模型隐藏维度$d$ & 768 & 768\\
+RotatE维度参数 & 200 & 200\\
+每类软提示长度 & 10 & 10\\
+批量大小 & 192 & 192\\
+训练轮数 & 50 & 10\\
+学习率 & $5\times10^{-5}$ & $1\times10^{-5}$\\
+正例间隔$\gamma$ & 0.05 & 0.05\\
+历史批次数 & 0 & 2\\
+温度初始值 & 0.05 & 0.05\\
+标签平滑系数 & 0.1 & 0.1\\
+损失权重参数初始值 & $(1,1)$ & $(1,1)$\\
+预热步数 & 400 & 400\\
+图重排序$(k,\beta)$ & $(5,0.05)$ & $(2,0.05)$\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{对比方法}
+
+对比方法沿用第一章的分类，覆盖以下三类代表性研究。
+
+\textbf{（1）基于知识图谱嵌入的方法。}包括TransE、DistMult、ComplEx、ConvE、RotatE和CompGCN，分别利用几何变换、语义匹配或神经网络编码学习实体与关系表示。这类方法用于比较直接从三元组学习结构约束与结构提示增强文本表示的差异。
+
+\textbf{（2）基于预训练语言模型的方法。}包括KG-BERT、MTL-KGC、KGT5、KnowC、SRP-KGC和SimKGC，涵盖三元组判别、生成式预测和双编码器匹配等方式。其中SimKGC与本章模型同样采用查询—候选匹配形式，是考察结构提示作用的主要对照。
+
+\textbf{（3）基于结构与语义融合的方法。}包括CSProm-KG、HSAE、StAR和LMKE。这些方法从提示构造、结构监督或预测过程等不同环节结合知识图谱信息与文本信息，用于比较不同融合策略的效果。
+
+其中，SimKGC、KnowC和SRP-KGC采用本地复现结果；LMKE在两个数据集上采用作者更正后的C-LMKE结果\cite{wang2022language}。其余文献结果沿用SimKGC、CSProm-KG及HSAE论文汇总的相应数值\cite{wang2022simkgc,chen2023cspromkg,xue2025hsae}，并在结果表中统一标记。本地复现使用BERT-base和单张24 GB显卡，物理批量大小为192；KnowC和SRP-KGC启用梯度检查点以满足显存约束。因此，这些复现结果反映所用单卡配置下的表现，不等同于各方法原论文的最优运行结果。
+
+\section{实验结果与分析}
+
+本节从整体预测性能、预对齐模块的作用以及文本信息受损时的表现三个方面展开分析。首先通过对比实验评价模型的链路预测能力，随后通过消融实验考察预对齐的贡献，最后分析文本扰动条件下的预测结果。
+
+\subsection{对比实验}
+
+为评价预对齐结构提示模型的整体性能，在WN18RR与FB15k-237上与各类代表性方法进行比较，结果分别见表\ref{tab:c3_wn}和表\ref{tab:c3_fb}。两个数据集采用相同的指标顺序，以下结合其关系类型与文本特点分析预测效果。
+
+表\ref{tab:c3_wn}给出了各方法在WN18RR上的实验结果。预对齐结构提示模型的MRR、Hits@1、Hits@3和Hits@10分别为66.4、58.6、71.2和79.8。
+
+\begingroup
+\small
+\setstretch{1.15}
+\setlength{\LTpre}{8pt}
+\setlength{\LTpost}{8pt}
+\begin{longtable}{@{}p{0.40\textwidth}*{4}{>{\centering\arraybackslash}p{0.12\textwidth}}@{}}
+\caption{WN18RR上的链路预测结果（\%）}\label{tab:c3_wn}\\
+\toprule
+方法 & MRR & Hits@1 & Hits@3 & Hits@10\\
+\midrule
+\endfirsthead
+\caption[]{WN18RR上的链路预测结果（\%）（续）}\\
+\toprule
+方法 & MRR & Hits@1 & Hits@3 & Hits@10\\
+\midrule
+\endhead
+\midrule
+\multicolumn{5}{r}{续下页}\\
+\endfoot
+\bottomrule
+\multicolumn{5}{p{0.95\textwidth}}{\footnotesize 注：粗体和下划线分别表示最优与次优结果；$\dagger$表示文献结果，其余为本地实验结果；“--”表示未报告。}\\
+\endlastfoot
+\multicolumn{5}{l}{基于知识图谱嵌入的方法}\\*
+TransE$^{\dagger}$\cite{bordes2013translating} & 24.3 & 4.3 & 44.1 & 53.2\\
+DistMult$^{\dagger}$\cite{yang2015embedding} & 44.4 & 41.2 & 47.0 & 50.4\\
+ComplEx$^{\dagger}$\cite{trouillon2016complex} & 44.9 & 40.9 & 46.9 & 53.0\\
+ConvE$^{\dagger}$\cite{dettmers2018conve} & 45.6 & 41.9 & 47.0 & 53.1\\
+RotatE$^{\dagger}$\cite{sun2019rotate} & 47.6 & 42.8 & 49.2 & 57.1\\
+CompGCN$^{\dagger}$\cite{vashishth2020composition} & 47.9 & 44.3 & 49.4 & 54.6\\
+\addlinespace[2pt]
+\multicolumn{5}{l}{基于预训练语言模型的方法}\\*
+KG-BERT$^{\dagger}$\cite{yao2019kgbert} & 21.6 & 4.1 & 30.2 & 52.4\\
+MTL-KGC$^{\dagger}$\cite{kim2020mtlkgc} & 33.1 & 20.3 & 38.3 & 59.7\\
+KGT5$^{\dagger}$\cite{saxena2022sequence} & 50.8 & 48.7 & -- & 54.4\\
+KnowC\cite{yang2024knowc} & 55.8 & 46.3 & 61.5 & 72.6\\
+SRP-KGC\cite{hou2025srpkgc} & \textbf{68.6} & \textbf{60.5} & \textbf{73.8} & \textbf{83.4}\\
+SimKGC\cite{wang2022simkgc} & 64.7 & 55.4 & 70.9 & \underline{80.7}\\
+\addlinespace[2pt]
+\multicolumn{5}{l}{基于结构与语义融合的方法}\\*
+CSProm-KG$^{\dagger}$\cite{chen2023cspromkg} & 57.5 & 52.2 & 59.6 & 67.8\\
+HSAE$^{\dagger}$\cite{xue2025hsae} & 58.6 & 54.6 & 61.0 & 66.7\\
+StAR$^{\dagger}$\cite{wang2021structure} & 40.1 & 24.3 & 49.1 & 70.9\\
+LMKE$^{\dagger}$\cite{wang2022language} & 61.9 & 52.3 & 67.1 & 78.9\\
+\midrule
+预对齐结构提示模型 & \underline{66.4} & \underline{58.6} & \underline{71.2} & 79.8\\
+\end{longtable}
+\endgroup
+
+与SimKGC相比，本章方法的MRR从64.7提升至66.4，Hits@1从55.4提升至58.6，分别提高1.7和3.2个百分点；Hits@3从70.9提高至71.2，增幅为0.3个百分点。这表明结构与文本的协同表示主要改善了正确实体在候选前列的位置，尤其有助于提高首位预测的准确率。与此同时，Hits@10由80.7下降至79.8，说明这一改善并未覆盖所有排名区间。
+
+WN18RR中的实体往往是语义相近但关系角色不同的词义概念。文本编码能够识别语义关联，却可能将同一主题下的多个实体同时赋予较高分数。预对齐结构提示引入训练图中的关系信息，为模型区分这些候选提供另一类依据。MRR和Hits@1增益较大、Hits@10未同步提高的现象，与结构信息主要帮助调整已有高分候选之间相对次序的解释一致。
+
+与基于结构与语义融合的对比方法相比，预对齐结构提示模型的MRR高于CSProm-KG、HSAE、StAR和C-LMKE的对应结果，说明在词汇语义图谱中，通过输入预对齐和结构辅助监督组织两类信息具有一定优势。但其MRR仍低于SRP-KGC的68.6，Hits@3和Hits@10也低于SRP-KGC。后者显式利用推理路径并采用分层重排序，而本章方法通过实体与关系嵌入提供结构条件。两者的差异表明，紧凑的结构提示能够有效补充文本表示，但与显式路径建模相比仍存在信息表达方面的差异。
+
+
+
+FB15k-237上的实验结果见表\ref{tab:c3_fb}。本章方法的MRR、Hits@1、Hits@3和Hits@10分别为33.0、24.0、35.8和50.8，相对SimKGC分别提高0.7、0.7、0.8和0.4个百分点。
+
+\begingroup
+\small
+\setstretch{1.15}
+\setlength{\LTpre}{8pt}
+\setlength{\LTpost}{8pt}
+\begin{longtable}{@{}p{0.40\textwidth}*{4}{>{\centering\arraybackslash}p{0.12\textwidth}}@{}}
+\caption{FB15k-237上的链路预测结果（\%）}\label{tab:c3_fb}\\
+\toprule
+方法 & MRR & Hits@1 & Hits@3 & Hits@10\\
+\midrule
+\endfirsthead
+\caption[]{FB15k-237上的链路预测结果（\%）（续）}\\
+\toprule
+方法 & MRR & Hits@1 & Hits@3 & Hits@10\\
+\midrule
+\endhead
+\midrule
+\multicolumn{5}{r}{续下页}\\
+\endfoot
+\bottomrule
+\multicolumn{5}{p{0.95\textwidth}}{\footnotesize 注：粗体和下划线分别表示最优与次优结果；$\dagger$表示文献结果，其余为本地实验结果；“--”表示未报告。}\\
+\endlastfoot
+\multicolumn{5}{l}{基于知识图谱嵌入的方法}\\*
+TransE$^{\dagger}$\cite{bordes2013translating} & 27.9 & 19.8 & -- & 44.1\\
+DistMult$^{\dagger}$\cite{yang2015embedding} & 28.1 & 19.9 & 30.1 & 44.6\\
+ComplEx$^{\dagger}$\cite{trouillon2016complex} & 27.8 & 19.4 & 29.7 & 45.0\\
+ConvE$^{\dagger}$\cite{dettmers2018conve} & 31.2 & 22.5 & 34.1 & 49.7\\
+RotatE$^{\dagger}$\cite{sun2019rotate} & 33.8 & 24.1 & 37.5 & 53.3\\
+CompGCN$^{\dagger}$\cite{vashishth2020composition} & 35.5 & 26.4 & 39.0 & \underline{53.5}\\
+\addlinespace[2pt]
+\multicolumn{5}{l}{基于预训练语言模型的方法}\\*
+KG-BERT$^{\dagger}$\cite{yao2019kgbert} & 26.7 & 17.2 & 29.8 & 42.0\\
+MTL-KGC$^{\dagger}$\cite{kim2020mtlkgc} & 26.7 & 17.2 & 29.8 & 45.8\\
+KGT5$^{\dagger}$\cite{saxena2022sequence} & 27.6 & 21.0 & -- & 41.4\\
+KnowC\cite{yang2024knowc} & 28.2 & 20.0 & 30.9 & 44.4\\
+SRP-KGC\cite{hou2025srpkgc} & 29.2 & 19.7 & 32.2 & 48.4\\
+SimKGC\cite{wang2022simkgc} & 32.3 & 23.3 & 35.0 & 50.4\\
+\addlinespace[2pt]
+\multicolumn{5}{l}{基于结构与语义融合的方法}\\*
+CSProm-KG$^{\dagger}$\cite{chen2023cspromkg} & \underline{35.8} & \underline{26.9} & \underline{39.3} & \textbf{53.8}\\
+HSAE$^{\dagger}$\cite{xue2025hsae} & \textbf{36.2} & \textbf{28.1} & \textbf{40.2} & 52.7\\
+StAR$^{\dagger}$\cite{wang2021structure} & 29.6 & 20.5 & 32.2 & 45.8\\
+LMKE$^{\dagger}$\cite{wang2022language} & 30.6 & 21.8 & 33.1 & 48.4\\
+\midrule
+预对齐结构提示模型 & 33.0 & 24.0 & 35.8 & 50.8\\
+\end{longtable}
+\endgroup
+
+与WN18RR相比，FB15k-237上的四项指标均有所提升，但MRR与Hits@1的增益更小。该数据集包含237种关系，人物、地点、作品等实体的关系语义更加多样；同一实体在不同查询中可能需要关注不同属性。将结构提示和文本共同编码能够补充关系约束，但采用统一比例融合时，仍难以针对不同关系灵活分配两类信息的作用。
+
+表\ref{tab:c3_fb}同时表明，本章方法与部分知识图谱嵌入方法及融合方法仍有差距。RotatE和CompGCN的MRR分别为33.8和35.5，CSProm-KG和HSAE分别为35.8和36.2，均高于本章方法。对于关系连接较丰富的FB15k-237，直接利用实体与关系的几何约束或图神经网络编码仍具有优势。本章模型通过软提示将结构信息引入文本编码，最终采用查询与候选表示的相似度评分，其性能同时受到结构信息转换与文本表示能力的影响。
+
+因此，两个数据集上的结果体现出不同特点：在WN18RR上，改善主要集中于MRR和首位命中；在FB15k-237上，提升覆盖四项指标，但幅度较小。结构—语义协同具有补充文本建模的作用，其收益同时受到关系类型和可用结构信息的影响。
+
+\subsection{消融实验}
+
+为验证预对齐模块的作用，设置移除预对齐的消融模型。该模型直接将投影后的知识图谱嵌入输入提示生成器，不再与名称词嵌入进行组合；软提示构造、双编码器、分区池化和联合训练目标保持一致。通过这一对照，可以考察提示生成前的结构—语义对齐对预测性能的影响。实验结果见表\ref{tab:c3_ablation}。
+
+\begin{table}[!htbp]
+\centering
+\setstretch{1.15}
+\caption{预对齐模块消融结果（\%）}
+\label{tab:c3_ablation}
+\small
+\begin{tabular}{llrrrr}
+\toprule
+数据集 & 模型 & MRR & Hits@1 & Hits@3 & Hits@10\\
+\midrule
+\multirow{2}{*}{WN18RR}
+ & 移除预对齐 & 65.2 & 56.8 & 70.7 & \textbf{79.8}\\
+ & 预对齐结构提示模型 & \textbf{66.4} & \textbf{58.6} & \textbf{71.2} & \textbf{79.8}\\
+\midrule
+\multirow{2}{*}{FB15k-237}
+ & 移除预对齐 & 32.4 & 23.4 & 35.1 & 50.4\\
+ & 预对齐结构提示模型 & \textbf{33.0} & \textbf{24.0} & \textbf{35.8} & \textbf{50.8}\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+在WN18RR上，引入PreAlign后MRR提高1.2个百分点，Hits@1提高1.8个百分点，Hits@3提高0.5个百分点，Hits@10保持不变。由于两个变体使用相同的结构提示编码方式，这一差异表明，在生成提示之前建立结构表示与名称语义之间的联系，比直接映射结构向量更有利于当前任务的表示学习。
+
+在FB15k-237上，预对齐使MRR从32.4提高至33.0，Hits@1、Hits@3和Hits@10分别提高0.6、0.7和0.4个百分点。相比WN18RR，MRR增益较小，但四项指标均得到改善。两个数据集的消融结果共同支持输入预对齐的作用，也说明其收益并不要求改变后续评分形式。
+
+从整体流程看，PreAlign为提示生成提供语言模型空间中的语义参照，分区池化保留结构与文本两个读出分支，结构辅助目标则在训练中约束提示位置的关系表达。三者构成了本章的协同表示框架，其中本节消融直接考察的是PreAlign对预测性能的贡献。
+
+\subsection{鲁棒性分析}
+\label{sec:c3_text_drop}
+
+实体描述可能存在缺失或不完整现象。为考察文本受损时结构信息的补充作用，在推理阶段对文本输入施加Text Drop扰动：以概率$p$独立地将非特殊文本词元替换为\textnormal{[MASK]}，并在不同扰动强度下记录MRR。该设置改变输入文本的完整程度，用于观察结构—语义模型对文本信息损失的响应。
+
+% TODO(author verification): 按作者2026-10-03要求，本节先放第三章，复用小论文现有数据。
+% 现有数值属于DLDA及SimKGC；p=0来自更新主结果，p>0来自早期诊断运行。
+% 必须用w/o Gate同一checkpoint的p=0与p>0结果替换后，才能归入第三章方法的正式鲁棒性结论。
+% 当前保留真实模型名称与简短表注，不将已有DLDA记录改称w/o Gate，不计算跨checkpoint下降率。
+图\ref{fig:c3_text_drop}展示不同扰动强度下的预测结果\footnote{本节暂以DLDA已有实验作参照，待替换为预对齐结构提示模型的结果；$p=0$与$p>0$来自不同版本记录，不据此计算相对下降率。}。
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.78\textwidth]{ch34/text_drop_reference.pdf}
+\caption{WN18RR上的文本扰动对比结果}
+\label{fig:c3_text_drop}
+\end{figure}
+
+
+
+从已有记录可见，两种模型在文本扰动加重时均出现性能下降。在$p=0.1$、0.2和0.3时，DLDA的MRR分别为60.4、51.1和40.7，高于SimKGC的53.0、40.9和29.9。这一现象说明，在所记录的扰动条件下，结合结构信息的模型仍能保持较高的候选区分能力，为结构与文本的互补性提供了观察依据。
+
+随着文本词元被遮蔽，实体描述所提供的类型和属性信息逐渐减少，两种模型的预测能力均受到影响。结构增强模型还能够利用训练三元组中学习到的关系联系，为文本信息不足的查询提供补充依据。已有参照结果呈现出这一趋势；预对齐结构提示模型的具体鲁棒性表现仍需通过对应实验结果加以评价。
 
 \section{本章小结}
-本章首先研究了时域积分方程时间步进算法的阻抗元素精确计算技术，分别采用DUFFY变换法与卷积积分精度计算法计算时域阻抗元素，通过算例验证了计算方法的高精度。
+
+本章针对结构嵌入与语言模型输入空间不一致的问题，提出基于预对齐结构提示的结构—语义协同知识图谱补全方法。该方法通过PreAlign将结构向量与名称语义联系起来，再利用适配器生成软提示，使头实体—关系输入和候选实体输入分别在对应BERT编码器中完成结构与文本的协同建模。分区池化保留结构表征和语义表征，主任务对比损失与提示侧结构辅助目标共同支持表示学习。
+
+在WN18RR和FB15k-237上，本章方法的MRR分别达到66.4和33.0，相较SimKGC提高1.7和0.7个百分点。消融实验表明，预对齐模块在两个数据集上均能改善预测结果，说明将知识图谱嵌入与名称语义联系起来有助于模型利用结构信息。实验也显示，该方法在词汇语义图谱上的前列排序改善更为明显，而在关系种类较多的FB15k-237上仍未超过部分知识图谱嵌入方法。这些结果体现了预对齐结构提示的作用及其适用特点。

@@ -1,62 +1,570 @@
-\chapter{时域积分方程数值方法研究}
-\section{时域积分方程时间步进算法的阻抗元素精确计算}
-时域积分方程时间步进算法的阻抗元素直接影响算法的后时稳定性，因此阻抗元素的计算是算法的关键之一，采用精度高效的方法计算时域阻抗元素是时域积分方程时间步进算法研究的重点之一。
+% 实验溯源：主结果为小论文DLDA；均值融合消融对应移除自适应门控，不使用配置名作为第三章方法名称。
+% 门控统计、表示探针与案例保留既有结果来源，本轮不补实验。
+\chapter{面向查询的结构—语义自适应融合知识图谱补全方法}
+\label{chap:adaptive}
 
-\section{时域积分方程时间步进算法阻抗矩阵的存储}
-时域阻抗元素的存储技术也是时间步进算法并行化的关键技术之一，采用合适的阻抗元素存储方式可以很大的提高并行时间步进算法的计算效率。
+针对不同关系查询对结构信息与文本信息的需求差异，本章提出面向查询的结构—语义自适应融合知识图谱补全方法。该方法将预对齐结构提示与文本共同编码，分别提取结构表征和语义表征，并通过逐维门控学习两类表征的融合权重。查询表示由头实体及关系共同决定，候选实体表示则仅依赖实体自身信息，从而兼顾关系条件建模与候选检索效率。本章在WN18RR、FB15k-237和静态YAGO11k上开展对比实验，并通过消融实验、融合方式比较及模型分析考察自适应融合的作用。
 
-\subsection{时域积分方程时间步进算法产生的阻抗矩阵的特征}
-由于时域混合场积分方程是时域电场积分方程与时域磁场积分方程的线性组合，因此时域混合场积分方程时间步进算法的阻抗矩阵特征与时域电场积分方程时间步进算法的阻抗矩阵特征相同。
+\section{引言}
 
-\subsection{数值算例与分析}
-如表\ref{tablea}所示给出了时间步长分别取0.4ns、0.5ns、0.6ns 时的三种存储方式的存储量大小。
+结构与语义融合方法能够同时利用图谱中的关系联系和实体文本中的背景知识，但两类信息对预测的作用会随查询变化。实体描述通常能够提供类型、属性和主题信息，图谱结构则反映实体在特定关系中的连接模式。当两类证据具有不同的区分能力时，采用固定比例组合可能无法突出对当前预测更有用的信息。
 
-\begin{table}[h]
-\caption{计算$2m\times 2m$理想导体平板时域感应电流采用的三种存储方式的存储量比较。}
-\begin{tabular}{cccc}
-\toprule
-\multirow{2}{*}{时间步长} & \multicolumn{3}{c}{存储方式} \\
-\cmidrule{2-4}
-& 非压缩存储方式 & 完全压缩存储方式 & 基权函数压缩存储方式 \\
-\midrule
-0.4ns & 5.59 MB & 6.78 MB & 6.78 MB\\
-0.5ns & 10.17 MB & 5.58 MB & 5.58 MB \\
-0.6ns & 8.38MB & 4.98 MB & 4.98 MB \\
-\bottomrule
-\end{tabular}
-\label{tablea}
-\end{table}
+第三章研究了结构嵌入与语言模型输入之间的预对齐问题，使结构提示能够参与文本编码。与输入表示的相容性不同，本章关注编码后两类表征的选择与组合。同一头实体可以出现在职业、出生地或参与作品等不同关系查询中，其相关证据并不相同。即使给定同一查询，不同隐藏维度所表示的特征也可能分别偏向语义相似性和关系结构，因此融合不仅需要考虑两类信息的整体比例，还需要允许不同维度作出不同调整。
 
-如图\ref{picd}所示给出了时间步长选取为0.5ns 时采用三种不同存储方式计算的平板中心处$x$方向的感应电流值与IDFT 方法计算结果的比较，……。如图\ref{pice}所示给出了存储方式为基权函数压缩存储方式，时间步长分别取0.4ns、0.5ns、0.6ns时平板中心处$x$方向的感应电流计算结果，从图中可以看出不同时间步长的计算结果基本相同。
+门控机制能够依据输入表示生成融合权重，为这一问题提供建模途径\cite{srivastava2015highway,arevalo2017gated}。与预先指定一个全局比例相比，逐维门控可以在保留语义信息的同时增强部分结构特征。要使这一机制适用于知识图谱补全，还需要将权重生成与查询关系联系起来，并保持候选实体表示的可复用性；否则，若每个候选都需要随查询重新编码，将削弱双编码器的检索优势。
 
-\begin{figure}[h]
-\subfloat[]{
-    \label{picd}
-    \includegraphics[width=6.77cm]{picd.pdf}
-}
-\subfloat[]{
-    \label{pice}
-    \includegraphics[width=7.04cm]{pice.pdf}
-}
-\caption{$2m\times 2m$的理想导体平板中心处感应电流$x$分量随时间的变化关系。(a)不同存储方式的计算结果与IDFT方法的结果比较；(b)不同时间步长的计算结果比较比较比较}
-\label{fig2}
+基于上述考虑，本章构建结构与语义自适应融合模型DLDA（Dual-Level Disentangled Alignment）。模型首先利用预对齐结构提示形成结构与语义两类表征，再根据两类表征生成逐维融合权重。头实体—关系联合输入使查询侧权重具有关系条件性，候选侧则根据实体自身信息完成融合。模型采用对比学习与结构辅助监督联合训练，通过全实体匹配获得预测结果，形成从输入表示、特征融合到训练和推理的完整方法。
+
+\section{面向查询的结构—语义自适应融合模型}
+
+\subsection{模型总体框架}
+
+DLDA的总体框架如图\ref{fig:c4_framework}所示，包括结构与文本协同编码、逐维自适应融合以及候选匹配三个环节。知识图谱与文本符号沿用第二章的定义，实体与关系嵌入分别记为$\mathbf{e}_h$、$\mathbf{r}$和$\mathbf{e}_t$，文本信息分别为$D_h$、$D_r$和$D_t$。模型的输入条件由结构嵌入和文本共同构成，输出为当前查询下各候选实体的匹配分数。
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.97\textwidth]{ch34/adaptive_framework.pdf}
+\caption{结构与语义自适应融合模型的总体框架}
+\label{fig:c4_framework}
 \end{figure}
 
-由于时域混合场积分方程是时域电场积分方程与时域磁场积分方程的线性组合，因此时域混合场积分方程时间步进算法的阻抗矩阵特征与时域电场积分方程时间步进算法的阻抗矩阵特征相同。
+在输入端，PreAlign将投影后的实体、关系嵌入与冻结的名称词嵌入组合，形成具有语义参照的结构条件。查询适配器根据头实体与关系的联合表示生成$\mathbf{P}_h$和$\mathbf{P}_r$，实体适配器根据候选实体生成$\mathbf{P}_t$。提示与对应文本组成查询序列$\mathbf{X}_{hr}$和候选序列$\mathbf{X}_t$，分别输入$\mathrm{BERT}_{hr}$和$\mathrm{BERT}_t$。在各自编码器内部，结构提示与文本共同参与上下文建模。
 
-\section{时域积分方程时间步进算法矩阵方程的求解}
-\begin{theorem}
-如果时域混合场积分方程是时域电场积分方程与时域磁场积分方程的线性组合。
-\end{theorem}
-\begin{proof}
-由于时域混合场积分方程是时域电场积分方程与时域磁场积分方程的线性组合，因此时域混合场积分方程时间步进算法的阻抗矩阵特征与时域电场积分方程时间步进算法的阻抗矩阵特征相同。
-\end{proof}
-\begin{corollary}
-时域积分方程方法的研究近几年发展迅速，在本文研究工作的基础上，仍有以下方向值得进一步研究。
-\end{corollary}
-\begin{lemma}
-因此时域混合场积分方程时间步进算法的阻抗矩阵特征与时域电场积分方程时间步进算法的阻抗矩阵特征相同。
-\end{lemma}
+模型分别聚合提示位置和文本位置的隐藏状态，得到查询侧结构表征$\mathbf{q}_{hr}^{\mathrm{str}}$与语义表征$\mathbf{q}_{hr}^{\mathrm{sem}}$，以及候选侧结构表征$\mathbf{z}_t^{\mathrm{str}}$与语义表征$\mathbf{z}_t^{\mathrm{sem}}$。其中，$\mathbf{q}$和$\mathbf{z}$分别沿用第二章的查询与候选表示记号，上标$\mathrm{str}$、$\mathrm{sem}$标记信息分支，所有表征的维度均为$d$。
+
+随后，查询侧与候选侧分别根据自身的两类表征计算门控权重，完成逐维融合。融合后的表示经$L_2$归一化后用于相似度评分。结构表征由提示位置读取，并受到结构辅助目标约束；语义表征由文本位置读取；自适应融合则学习两类表征在当前输入下的组合方式，使结构信息与文本信息共同参与候选区分。
+
+\subsection{面向查询的逐维门控融合}
+
+查询侧融合需要反映头实体与关系共同决定的预测需求。为此，将查询侧语义表征与结构表征沿特征维拼接，通过线性映射生成门控向量：
+\begin{equation}
+    \mathbf{g}_{hr}=\sigma\!\left(
+       \mathbf{W}_g[\mathbf{q}_{hr}^{\mathrm{sem}};\mathbf{q}_{hr}^{\mathrm{str}}]
+         +\mathbf{b}_g\right).
+    \label{eq:c4_gate}
+\end{equation}
+式\eqref{eq:c4_gate}中，$\mathbf{W}_g\in\mathbb{R}^{d\times2d}$、$\mathbf{b}_g\in\mathbb{R}^{d}$为可学习参数，$\sigma$为Sigmoid函数，$\mathbf{g}_{hr}\in(0,1)^d$。门控向量与第二章的向量门控记号一致，其每个分量分别控制对应维度中结构和语义信息的组合比例。
+
+查询融合表示及其归一化形式为
+\begin{equation}
+\begin{aligned}
+    \mathbf{q}_{hr}&=\mathbf{g}_{hr}\odot\mathbf{q}_{hr}^{\mathrm{str}}
+        +(\mathbf{1}-\mathbf{g}_{hr})\odot\mathbf{q}_{hr}^{\mathrm{sem}},\\
+    \bar{\mathbf{q}}_{hr}&=\frac{\mathbf{q}_{hr}}{\|\mathbf{q}_{hr}\|_2}.
+\end{aligned}
+    \label{eq:c4_query_fusion}
+\end{equation}
+其中，$\odot$表示逐元素乘法。式\eqref{eq:c4_query_fusion}先完成两类表征的逐维组合，再对融合结果执行归一化。对于第$j$个维度，较大的$g_{hr,j}$使结构表征具有更高权重，较小的门值则保留更多语义表征。
+
+查询侧两类表征均由$(h,r)$共同编码得到，因而门值同时受到头实体和关系的影响。即使头实体相同，不同关系文本和关系提示也会改变编码结果，使融合权重能够随查询关系变化。这种关系条件化通过查询表示完成，无需为每种关系人工指定融合比例。
+
+逐维权重还允许一个查询同时采用不同的信息组合。例如，某些维度中的文本特征已经能够区分实体类型，可以保留较高的语义权重；另一些维度中的结构特征有助于辨别具体关系对象，则可以给予更高的结构权重。两类信息的选择由候选预测目标共同优化，而非分别作出独立判断。
+
+当$\mathbf{g}_{hr}=\tfrac12\mathbf{1}$时，式\eqref{eq:c4_query_fusion}变为结构表征与语义表征的均值融合。因此，固定均值可作为检验自适应权重作用的对照。门控的建模对象是池化后的表征维度，其作用在于调整特征组合，不改变原始输入序列。
+
+\subsection{候选实体表示与评分函数}
+
+候选实体侧同样融合结构和语义信息，但其输入只包含该实体自身的提示与文本。设$G_t$为实体侧的仿射门控映射，则
+\begin{equation}
+\begin{aligned}
+    \mathbf{g}_t&=\sigma\!\left(G_t([\mathbf{z}_{t}^{\mathrm{sem}};\mathbf{z}_{t}^{\mathrm{str}}])\right),\\
+    \mathbf{z}_t&=\mathbf{g}_t\odot\mathbf{z}_{t}^{\mathrm{str}}
+       +(\mathbf{1}-\mathbf{g}_t)\odot\mathbf{z}_{t}^{\mathrm{sem}},\\
+    \bar{\mathbf{z}}_t&=\frac{\mathbf{z}_t}{\|\mathbf{z}_t\|_2}.
+\end{aligned}
+    \label{eq:c4_candidate_fusion}
+\end{equation}
+式\eqref{eq:c4_candidate_fusion}中，$G_t:\mathbb{R}^{2d}\rightarrow\mathbb{R}^{d}$，门控$\mathbf{g}_t\in(0,1)^d$。候选实体的结构与语义特征可能具有不同的表达质量，实体侧门控可根据其自身表示调整组合，而不引入当前查询关系。
+% TODO(author verification): G_t只表示实体侧门控运算，不据此断言两侧参数独立或共享。
+
+查询与候选实体的匹配分数定义为
+\begin{equation}
+    s(h,r,t)=\bar{\mathbf{q}}_{hr}^{\top}\bar{\mathbf{z}}_t.
+    \label{eq:c4_score}
+\end{equation}
+式\eqref{eq:c4_score}采用与第二章一致的余弦相似度评分，分数越高表示候选越符合当前查询。查询侧根据头实体和关系选择特征，候选侧保留可独立生成的实体表示，两者共同构成面向关系预测的匹配空间。
+
+将所有候选实体的归一化向量按行排列为$\bar{\mathbf{Z}}_{\mathcal{E}}\in\mathbb{R}^{|\mathcal{E}|\times d}$，全实体得分为
+\begin{equation}
+    \mathbf{s}_{hr}=\bar{\mathbf{Z}}_{\mathcal{E}}\bar{\mathbf{q}}_{hr}.
+    \label{eq:c4_all_entities}
+\end{equation}
+式\eqref{eq:c4_all_entities}将候选排序转化为矩阵与向量的乘积。候选矩阵可在模型参数固定后预先计算，在线预测仅需生成当前查询表示并计算全实体得分，避免为每个查询重复编码所有候选。
+
+\subsection{联合训练与推理过程}
+
+模型训练同时考虑最终表示的候选区分能力与提示侧表示的结构一致性。对第$i$个查询，以$t_i^+$表示正确尾实体，以$\mathcal{N}_i$表示负候选集合，主任务采用带正例间隔的对比损失：
+\begin{equation}
+    \mathcal{L}_{\mathrm{CL}}=-\frac1B\sum_{i=1}^{B}
+    \log\frac{\exp((s(h_i,r_i,t_i^+)-\gamma)/\tau)}
+    {\exp((s(h_i,r_i,t_i^+)-\gamma)/\tau)
+        +\sum_{e\in\mathcal{N}_i}\exp(s(h_i,r_i,e)/\tau)}.
+    \label{eq:c4_main_loss}
+\end{equation}
+式\eqref{eq:c4_main_loss}中的$B$、$\gamma$与$\tau$分别表示批量大小、正例间隔与温度，负例由批内、历史批次和自身负样本构成。对比损失作用于门控融合后的表示，其梯度通过评分函数传播到查询侧和候选侧门控，使两类表征的融合权重直接服务于正确实体的识别。
+
+结构辅助目标从头实体提示、关系提示和尾实体提示位置分别池化表示，并通过投影构造RotatE训练目标，记为$\mathcal{L}_{\mathrm{aux}}$。该目标约束的是融合前的提示侧表示，能够为结构分支保留关系模式提供监督。主任务与辅助目标共同优化知识图谱嵌入、提示生成模块和语言模型，使门控选择建立在具有补全意义的两类表征之上。
+
+联合目标为
+\begin{equation}
+\begin{aligned}
+    \mathcal{L}&=\lambda_{\mathrm{CL}}\mathcal{L}_{\mathrm{CL}}
+                   +\lambda_{\mathrm{aux}}\mathcal{L}_{\mathrm{aux}},\\
+    \lambda_j&=\frac{\exp(\eta_j)}{\exp(\eta_{\mathrm{CL}})+\exp(\eta_{\mathrm{aux}})},
+        \quad j\in\{\mathrm{CL},\mathrm{aux}\}.
+\end{aligned}
+    \label{eq:c4_total_loss}
+\end{equation}
+式\eqref{eq:c4_total_loss}中的权重随模型共同学习，两个未归一化参数均初始化为1。训练时还采用标签平滑，并根据验证集表现选择模型。门控不需要额外标注，其参数通过候选预测目标进行优化。
+
+推理时，先完成候选实体的编码、门控融合与向量缓存，再对输入查询进行编码和自适应融合，最后按式\eqref{eq:c4_all_entities}计算分数并执行相应的重排序与过滤评价。候选缓存的空间复杂度和单次全实体评分的时间复杂度均为$O(|\mathcal{E}|d)$。单个仿射门控包含$2d^2+d$个参数，主要计算量为$O(d^2)$，作用于定长池化向量，不增加语言模型输入长度。因此，该方法能够在保留候选缓存的同时学习更灵活的结构—语义组合。
+
+\section{实验设置}
+
+本节介绍自适应融合模型的实验数据、评价协议、训练参数与对比方法。实验同时覆盖词汇语义图谱和现实实体图谱，以考察模型在不同关系结构下的表现。
+
+\subsection{实验数据集}
+
+本章在WN18RR、FB15k-237及静态设置下的YAGO11k上评估DLDA。WN18RR包含40,943个词义实体和11种词汇语义关系，训练图较为稀疏，适合检验融合机制对语义相近实体的区分能力。FB15k-237包含14,541个实体与237种关系，现实实体与关系类型较多、连接相对稠密，可以考察融合机制在复杂关系场景中的表现。YAGO11k包含10,623个实体和10种关系，原数据带有时间标注\cite{dasgupta2018hyte}；本研究移除时间字段，将其用于静态三元组补全，不将本章结果等同于利用时间信息的时序补全结果。
+
+\begin{table}[!htbp]
+\centering
+\setstretch{1.15}
+\caption{实验数据集统计信息}
+\label{tab:c4_datasets}
+\small
+\begin{tabular}{lrrrrr}
+\toprule
+数据集 & 实体数 & 关系数 & 训练集 & 验证集 & 测试集\\
+\midrule
+WN18RR & 40,943 & 11 & 86,835 & 3,034 & 3,134\\
+FB15k-237 & 14,541 & 237 & 272,115 & 17,535 & 20,466\\
+YAGO11k（静态） & 10,623 & 10 & --- & --- & ---\\
+\bottomrule
+\end{tabular}
+\par\smallskip
+\begin{minipage}{0.94\textwidth}\small
+注：YAGO11k移除时间字段后所用划分数量留待根据实验数据文件补充。
+\end{minipage}
+\end{table}
+% TODO(author verification): YAGO11k静态划分数量及去重方式待补；不将参考硕士论文的时序划分直接当作本实验静态划分。
+
+三个数据集的统计信息见表\ref{tab:c4_datasets}。引入YAGO11k的目的，是在前两种图谱之外考察方法对另一类实体与关系组合的适用性。由于静态化处理去除了时间条件，该实验关注实体与关系本身所能提供的补全信息。
+
+\subsection{评价指标与参数设置}
+
+实验采用双向过滤评价，分别对测试三元组执行头实体预测和尾实体预测，合并计算MRR、Hits@1、Hits@3和Hits@10，定义见式\eqref{eq:bg_mrr}和式\eqref{eq:bg_hits}。模型依据验证集表现选择，所有指标统一以百分数报告。对于静态YAGO11k，进一步列出两个预测方向的MRR，以分析关系方向带来的性能差异。
+
+DLDA采用BERT-base编码文本，采用RotatE学习知识图谱嵌入，并通过两层GELU适配器生成每类10个软提示，关键参数见表\ref{tab:c4_parameters}。优化器为AdamW，预热400步，标签平滑系数为0.1。WN18RR训练50轮、学习率为$5\times10^{-5}$；FB15k-237训练10轮、学习率为$10^{-5}$。两个数据集的正例间隔均为0.05，温度初始值为0.05，损失权重参数初始化为$(1,1)$。WN18RR不使用历史批次负例，FB15k-237使用2个历史批次；图重排序参数分别为$(5,0.05)$和$(2,0.05)$。查询与候选实体的结构、语义表征通过逐维门控融合，训练目标同时包含对比损失与结构辅助损失。
+
+\begin{table}[!htbp]
+\centering
+\setstretch{1.15}
+\caption{WN18RR与FB15k-237的主要训练参数}
+\label{tab:c4_parameters}
+\small
+\begin{tabular}{lcc}
+\toprule
+参数 & WN18RR & FB15k-237\\
+\midrule
+文本编码器 & BERT-base & BERT-base\\
+知识图谱嵌入模型 & RotatE & RotatE\\
+RotatE维度参数 & 200 & 200\\
+每类提示长度 & 10 & 10\\
+批量大小 & 192 & 192\\
+训练轮数 & 50 & 10\\
+学习率 & $5\times10^{-5}$ & $10^{-5}$\\
+正例间隔 & 0.05 & 0.05\\
+历史批次数 & 0 & 2\\
+温度初始值 & 0.05 & 0.05\\
+图重排序$(k,\beta)$ & $(5,0.05)$ & $(2,0.05)$\\
+\bottomrule
+\end{tabular}
+\par\smallskip
+\begin{minipage}{0.94\textwidth}\small
+注：静态YAGO11k的具体训练参数待补充。
+\end{minipage}
+\end{table}
+% TODO(author verification): YAGO11k参数、硬件与模型选择记录后续由作者补齐，本轮不补实验。
+
+\subsection{对比方法}
+
+对比方法与第一章的研究分类保持一致，分为基于知识图谱嵌入的方法、基于预训练语言模型的方法以及基于结构与语义融合的方法。第一类包括TransE、DistMult、ComplEx、ConvE、RotatE和CompGCN；第二类包括KG-BERT、MTL-KGC、KGT5、KnowC、SRP-KGC和SimKGC；第三类包括CSProm-KG、HSAE、StAR和LMKE。SimKGC作为文本双编码器基线，用于考察结构与语义融合的整体收益；其他方法分别从结构建模、文本建模和不同融合策略提供比较。
+
+WN18RR与FB15k-237的文献结果来源于SimKGC、CSProm-KG和HSAE等工作，LMKE使用更正后的C-LMKE结果；静态YAGO11k的文献结果引自HSAE\cite{wang2022simkgc,chen2023cspromkg,xue2025hsae,wang2022language}。SimKGC、KnowC、SRP-KGC以及YAGO11k上的LMKE采用本地复现结果，结果表以统一标记区分文献结果和本地实验。
+
+本地复现使用BERT-base和单张24 GB显卡，物理批量大小为192；KnowC和SRP-KGC通过梯度检查点适配显存约束。SRP-KGC还沿用关系、路径和软路径共同参与的分层重排序。因此，相同物理批量并不意味着各方法使用完全相同的训练开销或后处理，结果应结合各自的证据来源理解。
+
+\section{实验结果与分析}
+
+本节首先通过对比实验评价DLDA的整体预测性能，再利用消融实验和不同融合方式的对比分析自适应门控的作用。在此基础上，结合门控权重、结构表征和具体预测案例，进一步讨论模型如何利用结构与语义信息。
+
+\subsection{对比实验}
+
+在WN18RR、FB15k-237和静态YAGO11k上开展链路预测对比实验，结果分别见表\ref{tab:c4_wn}、表\ref{tab:c4_fb}和表\ref{tab:c4_yago}。下文先分析模型相对文本基线的变化，再结合其他知识图谱嵌入方法与融合方法的结果讨论其性能特点。
+
+WN18RR上的对比结果见表\ref{tab:c4_wn}。DLDA的MRR为69.1，Hits@1为62.4，Hits@3为72.8，Hits@10为81.2。
+
+\begingroup
+\small
+\setstretch{1.15}
+\setlength{\LTpre}{8pt}
+\setlength{\LTpost}{8pt}
+\begin{longtable}{@{}p{0.40\textwidth}*{4}{>{\centering\arraybackslash}p{0.12\textwidth}}@{}}
+\caption{WN18RR上的链路预测结果（\%）}\label{tab:c4_wn}\\
+\toprule
+方法 & MRR & Hits@1 & Hits@3 & Hits@10\\
+\midrule
+\endfirsthead
+\caption[]{WN18RR上的链路预测结果（\%）（续）}\\
+\toprule
+方法 & MRR & Hits@1 & Hits@3 & Hits@10\\
+\midrule
+\endhead
+\midrule
+\multicolumn{5}{r}{续下页}\\
+\endfoot
+\bottomrule
+\multicolumn{5}{p{0.95\textwidth}}{\footnotesize 注：粗体和下划线分别表示最优与次优结果；$\dagger$表示文献结果，其余为本地实验结果；“--”表示未报告。}\\
+\endlastfoot
+\multicolumn{5}{l}{基于知识图谱嵌入的方法}\\*
+TransE$^{\dagger}$\cite{bordes2013translating} & 24.3 & 4.3 & 44.1 & 53.2\\
+DistMult$^{\dagger}$\cite{yang2015embedding} & 44.4 & 41.2 & 47.0 & 50.4\\
+ComplEx$^{\dagger}$\cite{trouillon2016complex} & 44.9 & 40.9 & 46.9 & 53.0\\
+ConvE$^{\dagger}$\cite{dettmers2018conve} & 45.6 & 41.9 & 47.0 & 53.1\\
+RotatE$^{\dagger}$\cite{sun2019rotate} & 47.6 & 42.8 & 49.2 & 57.1\\
+CompGCN$^{\dagger}$\cite{vashishth2020composition} & 47.9 & 44.3 & 49.4 & 54.6\\
+\addlinespace[2pt]
+\multicolumn{5}{l}{基于预训练语言模型的方法}\\*
+KG-BERT$^{\dagger}$\cite{yao2019kgbert} & 21.6 & 4.1 & 30.2 & 52.4\\
+MTL-KGC$^{\dagger}$\cite{kim2020mtlkgc} & 33.1 & 20.3 & 38.3 & 59.7\\
+KGT5$^{\dagger}$\cite{saxena2022sequence} & 50.8 & 48.7 & -- & 54.4\\
+KnowC\cite{yang2024knowc} & 55.8 & 46.3 & 61.5 & 72.6\\
+SRP-KGC\cite{hou2025srpkgc} & \underline{68.6} & \underline{60.5} & \textbf{73.8} & \textbf{83.4}\\
+SimKGC\cite{wang2022simkgc} & 64.7 & 55.4 & 70.9 & 80.7\\
+\addlinespace[2pt]
+\multicolumn{5}{l}{基于结构与语义融合的方法}\\*
+CSProm-KG$^{\dagger}$\cite{chen2023cspromkg} & 57.5 & 52.2 & 59.6 & 67.8\\
+HSAE$^{\dagger}$\cite{xue2025hsae} & 58.6 & 54.6 & 61.0 & 66.7\\
+StAR$^{\dagger}$\cite{wang2021structure} & 40.1 & 24.3 & 49.1 & 70.9\\
+LMKE$^{\dagger}$\cite{wang2022language} & 61.9 & 52.3 & 67.1 & 78.9\\
+\midrule
+DLDA & \textbf{69.1} & \textbf{62.4} & \underline{72.8} & \underline{81.2}\\
+\end{longtable}
+\endgroup
+
+相较SimKGC，DLDA的MRR提高4.4个百分点，Hits@1提高7.0个百分点，Hits@3和Hits@10分别提高1.9和0.5个百分点。首位命中的提升明显大于前十位命中的提升，表明模型的主要收益集中在正确实体的前列排序。对于已经进入候选前列但与其他实体语义相近的目标，自适应融合可以利用结构表征重新调整其相对分数。
+
+从MRR与Hits@1的变化可以看出，DLDA更擅长改善正确实体在候选前列的位置。查询中的关系既参与提示构造，也参与文本编码，融合权重因而能够反映当前关系的预测需求。与只根据实体文本计算语义相似性相比，这种表示方式为关系兼容的候选提供了额外的结构依据。
+
+在表列方法中，DLDA获得最高的MRR和Hits@1。SRP-KGC的Hits@3和Hits@10分别为73.8和83.4，高于DLDA的72.8和81.2；但DLDA的MRR和Hits@1分别高出0.5和1.9个百分点。这表明不同方法在候选覆盖与首位区分方面具有不同特点，DLDA的优势主要体现在更靠前的排序位置，而非所有截断指标均最优。
+
+WN18RR的词义实体具有较强的文本关联，训练图又相对稀疏。在这种情况下，结构信息并不需要全面替代语义信息，而可能通过部分有辨识力的维度提供补充。后续门控分析将结合门控权重统计讨论这一现象，以进一步理解该数据集上的融合收益。
+
+
+
+FB15k-237上的结果如表\ref{tab:c4_fb}所示。DLDA的MRR、Hits@1、Hits@3和Hits@10分别达到33.3、24.6、36.0和51.0，相对SimKGC分别提高1.0、1.3、1.0和0.6个百分点。
+
+\begingroup
+\small
+\setstretch{1.15}
+\setlength{\LTpre}{8pt}
+\setlength{\LTpost}{8pt}
+\begin{longtable}{@{}p{0.40\textwidth}*{4}{>{\centering\arraybackslash}p{0.12\textwidth}}@{}}
+\caption{FB15k-237上的链路预测结果（\%）}\label{tab:c4_fb}\\
+\toprule
+方法 & MRR & Hits@1 & Hits@3 & Hits@10\\
+\midrule
+\endfirsthead
+\caption[]{FB15k-237上的链路预测结果（\%）（续）}\\
+\toprule
+方法 & MRR & Hits@1 & Hits@3 & Hits@10\\
+\midrule
+\endhead
+\midrule
+\multicolumn{5}{r}{续下页}\\
+\endfoot
+\bottomrule
+\multicolumn{5}{p{0.95\textwidth}}{\footnotesize 注：粗体和下划线分别表示最优与次优结果；$\dagger$表示文献结果，其余为本地实验结果；“--”表示未报告。}\\
+\endlastfoot
+\multicolumn{5}{l}{基于知识图谱嵌入的方法}\\*
+TransE$^{\dagger}$\cite{bordes2013translating} & 27.9 & 19.8 & -- & 44.1\\
+DistMult$^{\dagger}$\cite{yang2015embedding} & 28.1 & 19.9 & 30.1 & 44.6\\
+ComplEx$^{\dagger}$\cite{trouillon2016complex} & 27.8 & 19.4 & 29.7 & 45.0\\
+ConvE$^{\dagger}$\cite{dettmers2018conve} & 31.2 & 22.5 & 34.1 & 49.7\\
+RotatE$^{\dagger}$\cite{sun2019rotate} & 33.8 & 24.1 & 37.5 & 53.3\\
+CompGCN$^{\dagger}$\cite{vashishth2020composition} & 35.5 & 26.4 & 39.0 & \underline{53.5}\\
+\addlinespace[2pt]
+\multicolumn{5}{l}{基于预训练语言模型的方法}\\*
+KG-BERT$^{\dagger}$\cite{yao2019kgbert} & 26.7 & 17.2 & 29.8 & 42.0\\
+MTL-KGC$^{\dagger}$\cite{kim2020mtlkgc} & 26.7 & 17.2 & 29.8 & 45.8\\
+KGT5$^{\dagger}$\cite{saxena2022sequence} & 27.6 & 21.0 & -- & 41.4\\
+KnowC\cite{yang2024knowc} & 28.2 & 20.0 & 30.9 & 44.4\\
+SRP-KGC\cite{hou2025srpkgc} & 29.2 & 19.7 & 32.2 & 48.4\\
+SimKGC\cite{wang2022simkgc} & 32.3 & 23.3 & 35.0 & 50.4\\
+\addlinespace[2pt]
+\multicolumn{5}{l}{基于结构与语义融合的方法}\\*
+CSProm-KG$^{\dagger}$\cite{chen2023cspromkg} & \underline{35.8} & \underline{26.9} & \underline{39.3} & \textbf{53.8}\\
+HSAE$^{\dagger}$\cite{xue2025hsae} & \textbf{36.2} & \textbf{28.1} & \textbf{40.2} & 52.7\\
+StAR$^{\dagger}$\cite{wang2021structure} & 29.6 & 20.5 & 32.2 & 45.8\\
+LMKE$^{\dagger}$\cite{wang2022language} & 30.6 & 21.8 & 33.1 & 48.4\\
+\midrule
+DLDA & 33.3 & 24.6 & 36.0 & 51.0\\
+\end{longtable}
+\endgroup
+
+四项指标的一致提升说明，自适应融合在现实实体与多种关系构成的图谱中同样能够增强文本检索表示。不过，其MRR提升幅度小于WN18RR；门控消融中，相较均值融合，逐维门控带来0.3个百分点的MRR增益。较为密集的结构连接可能使两类表征在联合编码后已经提供了较充分的互补信息，因此固定融合与逐维融合之间的差距较小。
+
+从方法类别看，DLDA优于本地运行的SimKGC、KnowC和SRP-KGC，但MRR仍低于RotatE的33.8、CompGCN的35.5、CSProm-KG的35.8以及HSAE的36.2。DLDA的Hits@1虽高于RotatE的24.1，但其MRR、Hits@3和Hits@10仍低于RotatE。因此，不能把四项指标相对SimKGC的提升理解为对直接采用知识图谱嵌入评分的方法的全面超越。
+
+这种差异与模型的最终评分方式有关。CSProm-KG和HSAE在知识图谱表示学习或预测过程中引入语言模型信息，图结构信号直接参与最终排序；DLDA则通过结构提示和辅助训练增强语言模型表示，再以余弦相似度评分。对于连接更丰富的FB15k-237，直接的结构评分能够更充分地利用部分关系模式，而DLDA的收益更多来自两类表征在语言模型空间中的协同。自适应融合改善了这一过程，但并未消除不同评分范式之间的差异。
+
+
+
+在静态设置下的YAGO11k上，DLDA获得21.1的MRR、13.6的Hits@1、22.6的Hits@3和35.4的Hits@10，具体结果见表\ref{tab:c4_yago}。
+
+\begingroup
+\small
+\setstretch{1.15}
+\setlength{\LTpre}{8pt}
+\setlength{\LTpost}{8pt}
+\begin{longtable}{@{}p{0.40\textwidth}*{4}{>{\centering\arraybackslash}p{0.12\textwidth}}@{}}
+\caption{静态YAGO11k上的链路预测结果（\%）}\label{tab:c4_yago}\\
+\toprule
+方法 & MRR & Hits@1 & Hits@3 & Hits@10\\
+\midrule
+\endfirsthead
+\caption[]{静态YAGO11k上的链路预测结果（\%）（续）}\\
+\toprule
+方法 & MRR & Hits@1 & Hits@3 & Hits@10\\
+\midrule
+\endhead
+\midrule
+\multicolumn{5}{r}{续下页}\\
+\endfoot
+\bottomrule
+\multicolumn{5}{p{0.95\textwidth}}{\footnotesize 注：粗体和下划线分别表示最优与次优结果；$\dagger$表示文献结果，其余为本地实验结果；“--”表示未报告。}\\
+\endlastfoot
+\multicolumn{5}{l}{基于知识图谱嵌入的方法}\\*
+TransE$^{\dagger}$\cite{bordes2013translating} & 10.0 & 1.5 & 13.8 & 24.4\\
+DistMult$^{\dagger}$\cite{yang2015embedding} & 15.8 & 10.7 & 16.1 & 26.8\\
+ComplEx$^{\dagger}$\cite{trouillon2016complex} & 19.4 & 14.3 & 20.0 & 30.7\\
+ConvE$^{\dagger}$\cite{dettmers2018conve} & 18.8 & 13.7 & 19.2 & 28.9\\
+RotatE$^{\dagger}$\cite{sun2019rotate} & 16.7 & 10.3 & 16.7 & 30.5\\
+CompGCN$^{\dagger}$\cite{vashishth2020composition} & 18.9 & 12.1 & 21.1 & 31.5\\
+\addlinespace[2pt]
+\multicolumn{5}{l}{基于预训练语言模型的方法}\\*
+KG-BERT$^{\dagger}$\cite{yao2019kgbert} & 7.2 & 3.2 & 6.5 & 14.1\\
+MTL-KGC$^{\dagger}$\cite{kim2020mtlkgc} & 8.4 & 2.9 & 8.0 & 18.2\\
+KGT5$^{\dagger}$\cite{saxena2022sequence} & 4.8 & 1.8 & 5.1 & 10.1\\
+KnowC\cite{yang2024knowc} & \underline{21.9} & 12.9 & \underline{24.5} & \textbf{39.6}\\
+SRP-KGC\cite{hou2025srpkgc} & \textbf{25.2} & \textbf{18.3} & \textbf{26.6} & \underline{39.1}\\
+SimKGC\cite{wang2022simkgc} & 19.9 & 12.7 & 21.5 & 34.1\\
+\addlinespace[2pt]
+\multicolumn{5}{l}{基于结构与语义融合的方法}\\*
+CSProm-KG$^{\dagger}$\cite{chen2023cspromkg} & 19.0 & \underline{14.5} & 19.6 & 27.6\\
+HSAE$^{\dagger}$\cite{xue2025hsae} & 18.8 & 13.2 & 20.4 & 30.5\\
+StAR$^{\dagger}$\cite{wang2021structure} & 7.1 & 2.7 & 6.2 & 14.5\\
+LMKE\cite{wang2022language} & 12.9 & 7.8 & 13.8 & 21.9\\
+\midrule
+DLDA & 21.1 & 13.6 & 22.6 & 35.4\\
+\end{longtable}
+\endgroup
+
+相较SimKGC，DLDA的四项指标分别提高1.2、0.9、1.1和1.3个百分点，说明结构提示与自适应融合在这一静态补全场景下仍具有补充文本表示的作用。与WN18RR不同，其首位命中增益并未明显高于前十位命中增益，说明该数据集上的改善分布与词汇语义图谱有所不同。
+
+在静态YAGO11k的对比中，DLDA的MRR低于KnowC的21.9和SRP-KGC的25.2。KnowC显式引入邻居三元组作为文本上下文，SRP-KGC建模关系与路径信息，两者可以利用比实体自身描述更丰富的关联证据。DLDA主要以实体和关系嵌入生成结构提示，其结构信息以紧凑向量的形式进入编码器，未显式展开邻居或路径序列。这种证据利用方式的不同，为理解性能差距提供了一个角度，而不能简单归因于模型规模。
+
+同时，DLDA的Hits@1为13.6，高于KnowC的12.9，但其MRR、Hits@3和Hits@10均低于KnowC；SRP-KGC则在四项指标上均高于DLDA。因此，静态YAGO11k结果支持DLDA相对文本基线的改进，也显示出在这一数据集上显式邻域与路径建模的竞争力。
+
+为进一步展示预测方向的差异，表\ref{tab:c4_yago_direction}列出DLDA在静态YAGO11k上的正反向MRR。尾实体预测的MRR为25.8，头实体预测为16.4，两者相差9.4个百分点，平均值为21.1，与主结果一致。这表明仅报告正向结果会高估该静态设置下的整体表现；两种方向在候选可区分性和关系映射难度上存在差异，需结合双向结果评价方法。
+
+\begin{table}[!htbp]
+\centering
+\setstretch{1.15}
+\caption{DLDA在静态YAGO11k上的双向MRR（\%）}
+\label{tab:c4_yago_direction}
+\begin{tabular}{lccc}
+\toprule
+模型 & 尾实体预测 & 头实体预测 & 双向平均\\
+\midrule
+DLDA & 25.8 & 16.4 & 21.1\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{消融实验}
+
+为验证逐维自适应门控的作用，将DLDA中的查询侧和候选侧门控均替换为固定均值融合，构造“移除自适应门控”消融模型。该模型对结构表征和语义表征分别赋予0.5的权重，其余输入构造、编码器和训练目标保持一致。表\ref{tab:c4_ablation}比较完整模型与该消融模型，以分析可学习融合权重对实体预测的影响。
+
+\begin{table}[!htbp]
+\centering
+\setstretch{1.15}
+\caption{自适应门控消融结果（\%）}
+\small
+\label{tab:c4_ablation}
+\begin{tabular}{llrrrr}
+\toprule
+数据集 & 模型 & MRR & Hits@1 & Hits@3 & Hits@10\\
+\midrule
+\multirow{2}{*}{WN18RR} & 移除自适应门控 & 66.4 & 58.6 & 71.2 & 79.8\\
+ & DLDA & \textbf{69.1} & \textbf{62.4} & \textbf{72.8} & \textbf{81.2}\\
+\midrule
+\multirow{2}{*}{FB15k-237} & 移除自适应门控 & 33.0 & 24.0 & 35.8 & 50.8\\
+ & DLDA & \textbf{33.3} & \textbf{24.6} & \textbf{36.0} & \textbf{51.0}\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+在WN18RR上，自适应门控带来2.7个百分点的MRR提升，Hits@1、Hits@3和Hits@10分别提高3.8、1.6和1.4个百分点。与固定平均相比，模型能够根据查询表示改变结构与语义的组合，改善正确实体的排序。该结果表明，输入侧已经完成预对齐后，输出端的融合方式仍会影响结构信息的利用。
+
+在FB15k-237上，门控使MRR提高0.3个百分点，Hits@1提高0.6个百分点，Hits@3和Hits@10均提高0.2个百分点。增益方向与WN18RR一致，但幅度更小，表明逐维自适应融合的收益具有数据集差异。在本组实验中，均值融合已能达到接近完整模型的结果，不能据此将门控收益概括为对所有图谱均同等明显。
+
+\subsection{不同融合方式的对比分析}
+
+为进一步比较特征融合策略的影响，在WN18RR上选取均值融合、逐维门控融合以及交叉注意力融合（Cross-Attention）与拼接感知机融合（ConcatMLP）进行对比。后两种方法使用相同的输入表示与训练目标，仅改变两类表征的组合方式。以查询侧为例，ConcatMLP将结构与语义表征拼接后输入两层MLP；Cross-Attention以结构表征为查询，以文本隐藏状态序列为键和值，通过残差连接、门控和前馈网络得到融合结果：
+\begin{equation}
+\begin{aligned}
+    \mathbf{q}_{hr}^{\mathrm{MLP}}&=\operatorname{MLP}
+       ([\mathbf{q}_{hr}^{\mathrm{sem}};\mathbf{q}_{hr}^{\mathrm{str}}]),\\
+    \widetilde{\mathbf{q}}_{hr}^{\mathrm{str}}&=\mathbf{q}_{hr}^{\mathrm{str}}+
+       \operatorname{CrossAttn}(\mathbf{q}_{hr}^{\mathrm{str}},\mathbf{H}_{hr}^{\mathrm{text}},\mathbf{H}_{hr}^{\mathrm{text}}),\\
+    \mathbf{q}_{hr}^{\mathrm{Cross}}&=\operatorname{FFN}
+       (\operatorname{Gate}(\widetilde{\mathbf{q}}_{hr}^{\mathrm{str}},\mathbf{q}_{hr}^{\mathrm{sem}})).
+\end{aligned}
+    \label{eq:c4_fusion_alternatives}
+\end{equation}
+其中，$\mathbf{H}_{hr}^{\mathrm{text}}$表示查询编码器输出中的文本隐藏状态序列。式\eqref{eq:c4_fusion_alternatives}给出查询侧计算，候选实体侧采用对应的融合过程。两种输出均经$L_2$归一化，再参与式\eqref{eq:c4_score}的相似度计算。交叉注意力额外访问文本词元序列，拼接感知机与逐维门控则直接处理池化向量。表\ref{tab:c4_fusion}给出了不同融合方式的比较结果。
+
+\begin{table}[!htbp]
+\centering
+\setstretch{1.15}
+\caption{WN18RR上不同融合机制的比较（\%）}
+\label{tab:c4_fusion}
+\begin{tabular}{lrrrr}
+\toprule
+融合方式 & MRR & Hits@1 & Hits@3 & Hits@10\\
+\midrule
+均值融合 & 66.4 & 58.6 & 71.2 & 79.8\\
+Cross-Attention & 67.8 & 60.8 & 72.2 & 80.1\\
+ConcatMLP & 68.3 & 61.4 & 72.6 & 80.8\\
+Adaptive Gate（DLDA） & \textbf{69.1} & \textbf{62.4} & \textbf{72.8} & \textbf{81.2}\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+三种可学习融合方式的MRR均高于均值融合，表明在固定平均之外增加表示组合能力是有效的。其中ConcatMLP优于Cross-Attention，而Adaptive Gate在四项指标上均取得最高结果。相较ConcatMLP，DLDA的MRR、Hits@1、Hits@3和Hits@10分别提高0.8、1.0、0.2和0.4个百分点。逐维门控既保留两类向量的直接对应关系，也能调整其贡献，在当前模型结构下取得了更好的融合效果。这一对比仅在WN18RR上完成，不据此推断其他数据集上的排序关系。
+
+\subsection{门控权重分析}
+
+为观察模型如何分配结构与语义权重，统计查询侧门控在测试查询上的输出。对每个隐藏维度先在查询集合上求均值，再计算全部维度的平均结构权重与最大、最小均值之间的跨度。统计结果见表\ref{tab:c4_gate_stats}和图\ref{fig:c4_gate_stats}。
+
+% TODO(author verification): 下列0.239/0.769和0.474/0.339来自小论文早期诊断checkpoint，未在本轮更新。
+\begin{table}[!htbp]
+\centering
+\setstretch{1.15}
+\caption{查询侧门控权重统计（早期诊断结果）}
+\label{tab:c4_gate_stats}
+\begin{tabular}{lrrr}
+\toprule
+数据集 & 平均结构权重 & 平均语义权重 & 维度跨度\\
+\midrule
+WN18RR & 0.239 & 0.761 & 0.769\\
+FB15k-237 & 0.474 & 0.526 & 0.339\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.91\textwidth]{ch34/gate_statistics.pdf}
+\caption{不同数据集上的查询侧平均门控权重与维度跨度}
+\label{fig:c4_gate_stats}
+\end{figure}
+
+在WN18RR上，查询侧平均结构权重为0.239，平均语义权重为0.761，说明整体仍以语义表征为主；但维度跨度达到0.769，体现出不同维度之间较明显的权重差异。这意味着门控并非简单地整体增加结构分支权重，而是在保持语义信息的同时，对部分维度采用更高的结构权重。该现象与WN18RR上较大的门控消融增益一致。
+
+在FB15k-237上，平均结构权重为0.474，与均值融合的0.5较为接近，维度跨度为0.339，低于WN18RR。统计结果呈现出更加均衡的结构—语义组合，与该数据集上均值融合与DLDA之间较小的性能差距相呼应。较为丰富的图连接可能使结构信息在联合编码阶段已经发挥较充分作用，读出阶段对比例调整的需求相对有限。
+
+上述统计来自早期诊断模型，反映了已有运行中的门控行为，不能直接视为最终模型每次预测的解释。另外，门值表示两路向量的组合系数，其实际影响还与向量分量的大小有关。因此，平均门控权重用于描述模型的融合倾向，不等于结构或文本对预测结果的精确贡献比例。
+
+\subsection{结构表征分析}
+
+为进一步观察结构提示经语言模型编码后所包含的信息，本节通过线性探针与低维可视化分析提示侧结构表征。表示探针的基本思路是固定待分析的表示，训练额外的简单预测器，考察某种属性是否容易从中读出\cite{hewitt2019structural}。本实验以训练图中的实体度数分组作为预测目标，用于观察结构属性在不同表示中的可解码性。
+
+在WN18RR上，根据实体度数的分位数划分三个类别，分别使用提示侧表示、原始RotatE实体嵌入和随机高斯向量训练线性分类器。提示侧表示由BERT最后一层的提示位置池化得到，维度为768；随机向量维度与其一致；原始KGE直接从已训练实体嵌入表读取。探针结果见表\ref{tab:c4_probe}。
+
+\begin{table}[!htbp]
+\centering
+\setstretch{1.15}
+\caption{WN18RR实体度数分类的线性探针结果（\%）}
+\label{tab:c4_probe}
+\begin{tabular}{lrr}
+\toprule
+输入表示 & 训练准确率 & 测试准确率\\
+\midrule
+原始RotatE嵌入 & 53.7 & 53.0\\
+随机高斯向量 & 53.7 & 52.4\\
+提示侧结构表征 & 72.3 & 72.1\\
+\bottomrule
+\end{tabular}
+\par\smallskip
+\begin{minipage}{0.91\textwidth}\small
+注：该实验以实体度数类别为预测目标，用于分析结构属性的可解码性。
+\end{minipage}
+\end{table}
+% TODO(author verification): 探针与t-SNE对应checkpoint及脚本版本后续统一归档；本轮复用小论文图3及数据。
+
+提示侧结构表征的测试准确率为72.1\%，分别高于原始RotatE嵌入和随机向量19.1与19.7个百分点。这表明在该探针设置下，经过提示构造与语言模型编码后，实体度数信息更容易被线性分类器读取。该结果为提示侧表示保留结构属性提供了支持，但不意味着度数是补全预测唯一依赖的结构特征。
+
+图\ref{fig:c4_tsne}利用t-SNE\cite{vandermaaten2008tsne}展示相同分析中的实体表示。上排为提示侧结构表征，下排为原始RotatE表示，各列突出显示一个度数类别，其余实体以灰色表示。提示侧表示在中、高度数类别中呈现更清楚的局部聚集，与线性探针观察相符；低度数类别的分离较弱，说明结构属性在表示空间中的组织仍具有差异。
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.97\textwidth]{ch34/representation_tsne.pdf}
+\caption{WN18RR实体表示的t-SNE可视化：上排为提示侧表示，下排为原始RotatE表示}
+\label{fig:c4_tsne}
+\end{figure}
+
+可视化反映的是高维表示在低维空间中的投影，不能仅凭聚集形态推断补全性能改善的因果机制。结合探针结果，可以认为提示侧表示包含能够区分部分结构属性的信息；这些信息与语义表征共同参与实体匹配，为模型利用图谱结构提供表示基础。
+
+\subsection{案例分析}
+
+为观察模型在具体关系查询中的排序行为，选取两个正确实体排名得到改善的样本进行分析。表\ref{tab:c4_cases}列出WN18RR和FB15k-237中的两个预测案例。两个查询分别要求预测概念的上位概念和演员参演的电影，正确答案均受到关系语义约束，不能只依据候选与输入文本的主题相似性判断。
+
+\begin{table}[!htbp]
+\centering
+\setstretch{1.15}
+\caption{不同模型在典型查询上的候选排序}
+\label{tab:c4_cases}
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{>{\raggedright\arraybackslash}p{0.10\textwidth}c*{3}{>{\raggedright\arraybackslash}p{0.22\textwidth}}}
+\toprule
+模型 & 目标排名 & 第1位候选 & 第2位候选 & 第3位候选\\
+\midrule
+\multicolumn{5}{p{0.96\textwidth}}{WN18RR：$(\textit{hexane},\textit{hypernym},?)$，目标实体为solvent。}\\
+SimKGC & 110 & aldehyde & alkyl\_radical & aliphatic\_compound\\
+DLDA & 1 & \textbf{solvent} & naphtha & aliphatic\_compound\\
+\midrule
+\multicolumn{5}{p{0.96\textwidth}}{FB15k-237：$(\textit{Rachel Weisz},\textit{performance.actor.film},?)$，目标实体为The Brothers Bloom。}\\
+SimKGC & 63 & K-19: The Widowmaker & Perfume: The Story of a Murderer & Pride \& Prejudice\\
+DLDA & 2 & K-19: The Widowmaker & \textbf{The Brothers Bloom} & Perfume: The Story of a Murderer\\
+\bottomrule
+\end{tabular}
+\par\smallskip
+\begin{minipage}{\textwidth}\footnotesize
+注：粗体表示目标实体；案例来自早期诊断实验。
+\end{minipage}
+\end{table}
+% TODO(author verification): 案例沿用早期DLDA和SimKGC诊断运行，后续可整体替换；不是本轮新增预测。
+
+在第一个案例中，SimKGC将多个化学相关概念排在前列，但目标实体solvent仅排在第110位；DLDA将其提升到首位。这说明词汇主题接近并不足以保证满足给定关系，而结构提示可以为候选匹配提供关系类型方面的补充信息。该案例展示了正确实体排名的改善，并不意味着模型已经恢复完整的概念层级。
+
+在第二个案例中，SimKGC将目标电影排在第63位，DLDA将其提升至第2位。两种模型均给部分电影候选较高排名，但DLDA更有效地提高了目标实体的相对分数。这与结构关联和文本语义共同参与最终表示的设计一致。两个案例体现了自适应融合在具体查询中的可能作用，整体性能仍以各数据集的主结果和门控消融为依据。
 
 \section{本章小结}
-本章首先研究了时域积分方程时间步进算法的阻抗元素精确计算技术，分别采用DUFFY变换法与卷积积分精度计算法计算时域阻抗元素，通过算例验证了计算方法的高精度。
+
+本章针对不同关系查询对结构与语义信息需求不同的问题，提出面向查询的结构—语义自适应融合方法DLDA。该方法通过提示与文本协同编码形成两类表征，并采用逐维门控学习其组合方式。头实体—关系联合表示使查询侧权重能够随查询变化，候选实体侧则保持独立编码，从而在利用关系条件的同时保留候选缓存和全实体检索能力。
+
+实验表明，DLDA在WN18RR、FB15k-237以及静态设置下的YAGO11k上的MRR分别为69.1、33.3和21.1，均高于对应SimKGC结果。相较均值融合，门控在WN18RR与FB15k-237上分别带来2.7和0.3个百分点的MRR提升，体现出不同数据集上的收益差异。融合机制对比、门控统计、结构探针和案例分析进一步展示了两类表征的组合特点。与此同时，DLDA在FB15k-237上仍低于部分知识图谱嵌入方法，在静态YAGO11k上仍落后于显式利用邻域或路径的较强基线，说明表示融合的效果受到图谱结构及可用证据形式的共同影响。

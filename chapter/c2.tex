@@ -45,7 +45,7 @@
 
 \subsection{知识图谱补全与推理任务的形式化表示}
 
-链接预测通过训练图学习评分函数，并对缺失位置上的候选实体排序。给定尾实体预测查询 $(h,r,?)$，其预测结果可以写为
+链路预测通过训练图学习评分函数，并对缺失位置上的候选实体排序。给定尾实体预测查询 $(h,r,?)$，其预测结果可以写为
 \begin{equation}
     \hat{t}=\arg\max_{e\in\mathcal{C}(h,r)}s(h,r,e),
     \label{eq:bg_tail_prediction}
@@ -54,15 +54,15 @@
 \begin{equation}
     \hat{h}=\arg\max_{e\in\mathcal{C}(r,t)}s(e,r,t).
 \end{equation}
-一个查询可能有多个正确答案，评估时需要记录目标实体在候选列表中的排名\cite{bordes2013translating}。相关任务还包括关系预测 $(h,?,t)$ 和三元组分类，前者在关系集合中选择答案，后者判断三元组的真伪。它们的输出和评估方式均与头尾实体排序不同。相较于前两项任务，链接预测不仅要求模型具备对图谱拓扑结构的深度理解，还直接面向真实知识库构建中最为广泛的“实体补漏”需求，能够提供更全面、细粒度的推理结果。
+一个查询可能有多个正确答案，评估时需要记录目标实体在候选列表中的排名\cite{bordes2013translating}。相关任务还包括关系预测 $(h,?,t)$ 和三元组分类，前者在关系集合中选择答案，后者判断三元组的真伪。它们的输出和评估方式均与头尾实体排序不同。相较于前两项任务，链路预测不仅要求模型具备对图谱拓扑结构的深度理解，还直接面向真实知识库构建中最为广泛的“实体补漏”需求，能够提供更全面、细粒度的推理结果。
 
 数据通常划分为训练集、验证集和测试集，分别用于参数学习、超参数调整与模型选择，以及最终评估。为统一头实体预测与尾实体预测，部分方法为三元组 $(h,r,t)$ 构造逆向形式 $(t,r^{-1},h)$，从而将 $(?,r,t)$ 转换为 $(t,r^{-1},?)$。例如，SimKGC 采用这一方式，将两个方向的实体预测统一为尾实体预测\cite{wang2022simkgc}。其中，$r^{-1}$ 是人为构造的逆关系标识，可以没有对应的自然语言名称。逆向训练样本仅由训练事实生成，验证集和测试集中的事实仍保留在各自划分中。
 
-根据评估实体是否在训练阶段出现，知识图谱补全可分为传导式（Transductive）和归纳式（Inductive）两类设定。传导式补全在预先确定的实体范围内预测缺失链接，归纳式补全需要为训练阶段未出现的实体生成表示，部分设定还涉及未见关系。在这一挑战下，传统依赖固定实体参数查找表的知识图谱嵌入模型往往束手无策；相比之下，基于预训练语言模型的方法能够利用实体的自然语言描述，天然具备对新实体的泛化能力。然而，若融合模型在引入文本的同时依然绑定了固定的图结构参数表，则仍需额外设计针对新实体的结构特征初始化或聚合机制。例如，KEPLER 所构建的 Wikidata5M 数据集便提供了多种不同的数据划分方式，为系统性评估模型在这些复杂泛化场景下的表现提供了重要基准\cite{wang2021kepler}。本文的研究主要聚焦于传统的传导式链接预测任务。
+根据评估实体是否在训练阶段出现，知识图谱补全可分为传导式（Transductive）和归纳式（Inductive）两类设定。传导式补全在预先确定的实体范围内预测缺失链接，归纳式补全需要为训练阶段未出现的实体生成表示，部分设定还涉及未见关系。在这一挑战下，传统依赖固定实体参数查找表的知识图谱嵌入模型往往束手无策；相比之下，基于预训练语言模型的方法能够利用实体的自然语言描述，天然具备对新实体的泛化能力。然而，若融合模型在引入文本的同时依然绑定了固定的图结构参数表，则仍需额外设计针对新实体的结构特征初始化或聚合机制。例如，KEPLER 所构建的 Wikidata5M 数据集便提供了多种不同的数据划分方式，为系统性评估模型在这些复杂泛化场景下的表现提供了重要基准\cite{wang2021kepler}。本文的研究主要聚焦于传统的传导式链路预测任务。
 
 \section{知识图谱嵌入模型基础}
 
-知识图谱嵌入为实体和关系学习连续向量，并通过评分函数刻画三元组中的统计规律。结构距离模型根据几何变换后的向量距离评分，语义匹配模型则计算潜在特征之间的交互。两类模型都可用于链接预测，也可与预训练语言模型或图神经网络结合。
+知识图谱嵌入为实体和关系学习连续向量，并通过评分函数刻画三元组中的统计规律。结构距离模型根据几何变换后的向量距离评分，语义匹配模型则计算潜在特征之间的交互。两类模型都可用于链路预测，也可与预训练语言模型或图神经网络结合。
 
 \subsection{结构距离模型}
 
@@ -369,3 +369,237 @@ SimKGC 使用 BERT 分别编码头实体与关系构成的查询以及候选尾�
     \end{tabular}
 \end{table}
 
+\section{提示学习与门控融合技术}
+
+\subsection{提示学习的基本范式}
+
+提示学习通过改写输入或引入条件向量，使预训练模型适应下游任务。离散提示由自然语言词元组成。在知识图谱补全中，基于完形填空的离散提示将已知实体和关系组织为自然语言模板，并为待预测实体保留填空位置。例如，尾实体查询 $(h,r,?)$ 可以根据关系 $r$ 的含义改写为包含实体 $h$ 的不完整句子，由语言模型预测与目标实体有关的词元。虽然此类人工设计的模板直观易读，但不同措辞可能改变模型对候选实体的预测分布，因此模板设计会影响补全效果。为缓解这一问题，后续研究进一步引入了自动模板搜索机制，利用梯度信号在离散空间中寻找适合任务的触发词\cite{petroni2019language,AutoPrompt_Shin_2020}。
+
+此外，对于依赖词元预测来完成实体补全的方法而言，如何建立“语言模型词表输出空间”与“图谱候选实体空间”之间的严格映射是另一大挑战。在标准的提示分类任务中，通常通过“答案空间映射”将模型预测的词元与特定任务标签相连接。然而，在知识图谱补全中，候选标签对应着数量庞大的实体库，且实体名称往往由多个词元构成，甚至不同实体可能共享同一别名。因此，仅依靠少量标签词进行答案映射往往不足，还需根据预测方式，结合候选实体词典、名称序列评分或实体消歧机制，将模型输出转换为实体级预测结果。
+
+为降低对人工模板的依赖，并直接通过梯度优化提示表示，连续提示采用可训练向量作为提示。设文本嵌入序列为 $\mathbf{X}\in\mathbb{R}^{L\times d}$，可训练提示为 $\mathbf{P}\in\mathbb{R}^{m\times d}$，输入端软提示可表示为
+\begin{equation}
+    \mathbf{X}'=[\mathbf{P};\mathbf{X}].
+    \label{eq:bg_soft_prompt}
+\end{equation}
+这里的串接沿序列维进行，$m$ 为提示长度。Prompt Tuning 在冻结主干参数 $\theta_0$ 的情况下，仅优化提示等任务参数\cite{lester2021power}：
+\begin{equation}
+    \mathbf{P}^{*}=\arg\min_{\mathbf{P}}
+      \sum_i\mathcal{L}\big(F_{\theta_0}([\mathbf{P};\mathbf{X}_i]),y_i\big).
+\end{equation}
+其中，$F_{\theta_0}$ 为参数冻结的预训练模型，$(\mathbf{X}_i,y_i)$ 为第 $i$ 个训练样本及其标签，$\mathcal{L}$ 为任务损失函数。
+
+Prefix-Tuning 把可学习前缀扩展到多层计算\cite{PrefixTuning_Li_2021}。以注意力键和值的连续前缀表示为例，第 $\ell$ 层可以写为
+\begin{equation}
+    \mathbf{K}'_{\ell}=[\mathbf{P}^{K}_{\ell};\mathbf{K}_{\ell}],\qquad
+    \mathbf{V}'_{\ell}=[\mathbf{P}^{V}_{\ell};\mathbf{V}_{\ell}].
+\end{equation}
+加入前缀后，原序列的查询可以访问额外的可学习键和值。输入端软提示与多层前缀均通过优化连续提示向量，引导预训练语言模型完成下游任务，并可在冻结主干参数的情况下减少需要更新的参数量。在知识图谱补全中，也可以将实体与关系的文本作为输入，通过实体预测目标学习提示参数，使语言模型适应补全任务。进一步地，还可以利用当前查询中的实体、关系或局部图信息生成提示，将结构条件引入语言模型的计算过程。
+
+\subsection{面向结构化知识的条件提示}
+
+条件提示指根据当前输入生成相应向量。结构条件通常来自训练图中的嵌入或邻域摘要。条件向量可以在输入端加入，也可以作为逐层前缀；训练时则可冻结语言模型，或将其与提示参数联合更新。这些选择决定了提示的作用位置和优化范围。
+
+图结构表示与语言模型的词元表示通常具有不同的训练目标和表示分布。条件提示需要通过可学习映射，将实体、关系或邻域信息转换为语言模型能够利用的条件表示。映射到相同维度仅满足输入形式要求，结构信息与文本语义之间的联系仍需在任务目标或额外对齐目标的约束下学习。
+
+在知识图谱场景中，可用实体、关系或局部图信息构造条件 $\mathbf{c}$。以输入端条件提示为例，可通过映射函数生成提示：
+\begin{equation}
+    \mathbf{P}(\mathbf{c})
+    =\operatorname{reshape}(g_{\phi}(\mathbf{c}),m,d),
+    \qquad g_{\phi}(\mathbf{c})\in\mathbb{R}^{md}.
+    \label{eq:bg_conditional_prompt}
+\end{equation}
+式\eqref{eq:bg_conditional_prompt}中的映射函数将结构条件转换为提示向量序列，使提示内容随输入变化。CSProm-KG 借鉴逐层软提示的方式，利用实体和关系嵌入生成各层对应的条件软提示，并将其作为前缀加入冻结的预训练语言模型各层，与查询对应的实体、关系文本进行交互。随后，模型提取软提示位置的输出表征，作为知识图谱嵌入模型的输入，对候选实体进行评分和排序。通过这一过程，由结构嵌入生成的提示在冻结的语言模型中吸收文本信息，形成用于链路预测的融合表示。训练过程中，预训练语言模型的参数保持冻结，实体与关系嵌入、提示生成模块等可训练部分则根据补全目标进行优化\cite{chen2023cspromkg}。
+
+\subsection{门控机制与特征融合}
+
+门控机制用可学习权重控制信息的传递比例。Highway Network 的变换门调节非线性变换路径与输入保留路径的权重\cite{srivastava2015highway}。在多源信息融合中，门控用于分配不同表示的贡献\cite{arevalo2017gated}，所学权重取决于输入信息、监督目标和参数化方式。
+
+设两路输入为 $\mathbf{x}\in\mathbb{R}^{d_x}$ 和 $\mathbf{y}\in\mathbb{R}^{d_y}$。为进行逐元素融合，可以先映射到共同维度：
+\begin{equation}
+    \mathbf{u}=\phi(\mathbf{W}_x\mathbf{x}+\mathbf{b}_x),\qquad
+    \mathbf{v}=\phi(\mathbf{W}_y\mathbf{y}+\mathbf{b}_y),\qquad
+    \mathbf{u},\mathbf{v}\in\mathbb{R}^{d}.
+\end{equation}
+其中，$\mathbf{W}_x$ 和 $\mathbf{W}_y$ 为可学习的映射矩阵，$\mathbf{b}_x$ 和 $\mathbf{b}_y$ 为对应的偏置向量。
+若使用样本相关的标量门控，则
+\begin{equation}
+    g=\sigma(\mathbf{w}^{\top}[\mathbf{u};\mathbf{v}]+b),\qquad
+    \mathbf{z}=g\mathbf{u}+(1-g)\mathbf{v},
+    \label{eq:bg_scalar_gate}
+\end{equation}
+其中，$\mathbf{w}$ 和 $b$ 分别为标量门控的权重向量和偏置，$g\in(0,1)$，$\sigma$ 为 Sigmoid 函数。若采用向量门控，则每个维度使用不同权重：
+\begin{align}
+    \mathbf{g}&=\sigma(\mathbf{W}_g[\mathbf{u};\mathbf{v}]+\mathbf{b}_g)
+       \in(0,1)^d,\\
+    \mathbf{z}&=\mathbf{g}\odot\mathbf{u}
+       +(\mathbf{1}-\mathbf{g})\odot\mathbf{v}.
+    \label{eq:bg_vector_gate}
+\end{align}
+其中，$\mathbf{W}_g$ 和 $\mathbf{b}_g$ 分别为向量门控的权重矩阵和偏置向量。
+上述两种形式均用于双路特征融合。门值不随输入变化时，融合退化为固定加权；向量门控则为各维度分别确定组合比例。多路输入可通过 Softmax 生成归一化权重，再进行加权求和。
+
+在知识图谱补全中，$\mathbf{u}$ 和 $\mathbf{v}$ 可分别表示映射后的实体结构特征与文本描述特征。不同实体的邻域覆盖和描述完整程度存在差异，两路信息对候选区分的作用也可能不同。样本相关的门控根据输入表示学习融合权重，使结构信息与文本信息的组合随当前输入变化。
+
+\section{对比学习与联合训练基础}
+
+\subsection{负样本构造与训练目标}
+
+知识图谱训练数据通常以已观测的正确三元组为主。为了让模型区分正确事实与其他候选，训练时常通过替换头实体或尾实体构造负样本\cite{bordes2013translating}。对于训练三元组 $(h,r,t)$，其替换候选集合可写为
+\begin{equation}
+\begin{aligned}
+    \mathcal{U}(h,r,t)={}&
+       \{(e,r,t):e\in\mathcal{E},\ e\ne h\}\\
+       &\cup\{(h,r,e):e\in\mathcal{E},\ e\ne t\}.
+\end{aligned}
+    \label{eq:bg_corruption}
+\end{equation}
+设训练阶段允许使用的已知正例集合为 $\mathcal{K}_{\mathrm{tr}}$，从 $\mathcal{U}(h,r,t)\setminus\mathcal{K}_{\mathrm{tr}}$ 中采样即可得到该事实的负样本。通常取 $\mathcal{K}_{\mathrm{tr}}=\mathcal{T}_{\mathrm{train}}$，其作用是屏蔽已知正确事实，与最终评估阶段使用的过滤集合不同。
+
+替换实体可以产生大量候选三元组，训练时通常从中选取一定数量作为负样本。候选集合确定了负样本的来源，采样策略则进一步决定哪些候选参与训练。最直接的方式是均匀采样，即从候选实体中等概率选取替换对象。但随机选出的候选可能已经容易被模型区分，对进一步改善候选排序的作用有限。因此，也可以利用当前模型的评分筛选负样本，或调整其在损失中的权重，使训练更关注得分较高、尚难区分的候选。RotatE 使用自对抗负采样，根据当前评分为已采样的负例分配权重，使较高分负例对损失具有更大贡献\cite{sun2019rotate}。
+
+这类得分较高但实际错误的候选通常称为困难负样本。不过，知识图谱并不完整，高分候选也可能是尚未记录的正确事实；若将其作为负例训练，就会产生假负例问题。因此，模型评分能够反映候选的区分难度，却不能直接确定候选是否为错误事实。
+
+确定正负训练样本后，还需通过损失函数规定模型如何区分它们。若将三元组判别写为二分类问题，令 $\mathcal{S}$ 为训练样本批次，$y_x\in\{0,1\}$ 为三元组 $x$ 的训练标签，$\sigma$ 为 Sigmoid 函数，则二元交叉熵为
+\begin{equation}
+\begin{aligned}
+    \mathcal{L}_{\mathrm{BCE}}=-\frac{1}{|\mathcal{S}|}
+       \sum_{x\in\mathcal{S}}\big[&y_x\log\sigma(s(x))\\
+       &+(1-y_x)\log(1-\sigma(s(x)))\big].
+\end{aligned}
+    \label{eq:bg_bce}
+\end{equation}
+二元交叉熵分别约束各三元组的预测与标签；式\eqref{eq:bg_margin}中的间隔排序损失要求正确三元组的评分高于负三元组；下一节介绍的对比目标则在同一候选集合内提高正确实体的相对得分。
+
+负样本构造及其与训练目标的联系如图\ref{fig:bg_negative_sampling}所示。
+
+% 绘图提示词见 writing_notes/c2_additions_20261003/figure_prompts.md 的图4。
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.90\textwidth]{pic/ch2/负样本构造.pdf}
+    \caption{知识图谱负样本构造与训练目标}
+    \label{fig:bg_negative_sampling}
+\end{figure}
+
+\subsection{对比目标与候选区分}
+
+对比学习通过提高相关样本的相对相似度、降低不相关样本的相似度，学习具有区分性的表示。InfoNCE 是常用目标之一\cite{oord2018cpc}。在链路预测中，令第 $i$ 个查询为 $q_i=(h_i,r_i)$，其目标实体为 $t_i^+$，采样负候选集合为 $\mathcal{N}_i$，则带正例间隔的目标可写为
+\begin{equation}
+    \mathcal{L}_{\mathrm{CL}}
+    =-\frac{1}{B}\sum_{i=1}^{B}
+      \log\frac{\exp((s(q_i,t_i^+)-\gamma)/\tau)}
+      {\exp((s(q_i,t_i^+)-\gamma)/\tau)
+       +\sum_{e\in\mathcal{N}_i}\exp(s(q_i,e)/\tau)}.
+    \label{eq:bg_infonce}
+\end{equation}
+其中，$B$ 为查询批量大小，$\tau>0$ 为温度，$\gamma\geq0$ 为正例间隔；$\gamma=0$ 时退化为通常的相似度对比形式。温度调节分数差异在归一化分布中的影响，正例间隔则要求模型在训练中拉开正负候选分数。式中 $s(q_i,e)$ 是 $s(h_i,r_i,e)$ 的简写。
+
+为增加对比学习中的负候选，SimKGC 利用双编码器能够复用实体表示的特点，结合批内负样本、历史批次负样本和自身负样本三种方式\cite{wang2022simkgc}。批内负样本将同一批次中其他查询的目标实体作为负候选；历史批次负样本复用此前计算并缓存的实体向量，进一步扩大候选范围；自身负样本则在头实体不是正确答案时，将其作为负候选，帮助模型区分文本相似但关系不成立的实体。
+
+SimKGC 在 WN18RR 上的实验表明，在其测试范围内，增加批内负样本数量能够改善链路预测效果，说明充分的负候选对该模型的对比训练具有重要作用。同时，自身负样本的设计表明，除数量外，负样本能否提供有区分价值的训练信号也值得关注。训练时还需过滤已知正确答案，避免将其作为负候选。
+
+\subsection{辅助监督与联合优化}
+
+联合优化将主要任务与辅助任务的损失加权组合，使模型同时学习不同目标提供的信息。在知识图谱补全中，主要任务用于学习实体预测，辅助任务可通过语言建模或结构评分提供额外监督。设主要任务损失为 $\mathcal{L}_{\mathrm{task}}$，辅助损失为 $\mathcal{L}_{\mathrm{aux}}$，联合目标可写为
+\begin{equation}
+    \mathcal{L}=\lambda_1\mathcal{L}_{\mathrm{task}}
+        +\lambda_2\mathcal{L}_{\mathrm{aux}},
+    \qquad\lambda_1,\lambda_2\geq0.
+    \label{eq:bg_joint_loss}
+\end{equation}
+其中，$\lambda_1$ 和 $\lambda_2$ 分别控制主要任务与辅助任务的贡献。权重可以设为固定值，也可以由独立的可学习参数经 Softmax 归一化得到，并与模型共同更新。固定 $\lambda_1=1$ 时，该式即为在主要任务损失上叠加加权辅助损失的形式。KEPLER 联合优化知识嵌入与语言建模目标，StAR 则结合分类与空间距离目标\cite{wang2021kepler,wang2021structure}。
+
+对于两个任务共享的模型参数 $\theta$，上述联合目标的梯度为
+\begin{equation}
+    \nabla_{\theta}\mathcal{L}
+    =\lambda_1\nabla_{\theta}\mathcal{L}_{\mathrm{task}}
+      +\lambda_2\nabla_{\theta}\mathcal{L}_{\mathrm{aux}}.
+\end{equation}
+共享参数接收两个目标的加权梯度。主要任务引导表示区分正确实体与其他候选，辅助任务则通过文本语义或图结构约束参与表示学习。
+
+\section{实验基准与评估体系}
+
+\subsection{常用基准数据集介绍}
+
+知识图谱补全通常在具有固定实体、关系及三元组划分的基准上比较。早期常用的 WN18 和 FB15k 分别来源于 WordNet 与 Freebase。由于训练集和测试集之间存在逆关系或近重复关系，模型可能借助简单规则获得较高分数。后续研究据此构建了 FB15k-237 与 WN18RR，以减少这类结构捷径\cite{toutanova2015observed,dettmers2018conve}。这些处理针对特定的泄露来源，其他潜在泄露仍需单独检查。
+
+WN18RR 以词义实体及词汇语义关系为主，包含 40,943 个实体与 11 种关系；FB15k-237 涵盖人物、地点、影视等领域，包含 14,541 个实体与 237 种关系。常用划分的规模见表\ref{tab:bg_datasets}。两者在关系类型、实体文本和连接分布上的差异，可用于考察模型在不同数据特征下的表现。实体数和平均度仅反映其中一部分特征，方法的适用性还需结合实验判断。
+
+\begin{table}[htbp]
+    \centering
+    \caption{常用链路预测基准的规模}
+    \label{tab:bg_datasets}
+    \small
+    \begin{tabular}{lrrrrr}
+        \toprule
+        数据集 & 实体数 & 关系数 & 训练集 & 验证集 & 测试集 \\
+        \midrule
+        WN18RR & 40,943 & 11 & 86,835 & 3,034 & 3,134 \\
+        FB15k-237 & 14,541 & 237 & 272,115 & 17,535 & 20,466 \\
+        \bottomrule
+    \end{tabular}
+    \par\smallskip
+    \begin{minipage}{0.94\textwidth}
+        \small 数据来源：FB15k-237 的构建工作及 ConvE 文献中所列基准统计\cite{toutanova2015observed,dettmers2018conve}。实体数按常用实体字典统计，具体实验仍需记录所用数据版本。
+    \end{minipage}
+\end{table}
+
+KEPLER 提出的 Wikidata5M 将 Wikidata 中的结构事实与 Wikipedia 文本描述关联，包含约 459 万实体，并提供传导式和归纳式等评估划分\cite{wang2021kepler}。该数据集可用于文本增强补全和大规模候选检索研究，其实体规模也增加了表示存储与排序的开销。各划分中的实体可见性和候选范围不同，结果比较需以具体划分为依据。
+
+YAGO11k 原本用于时序知识图谱研究，事实中带有时间信息\cite{dasgupta2018hyte}。用于静态补全时，需说明时间字段的处理方式，并检查去除时间后产生的重复三元组和跨划分重叠。时间信息的处理改变了样本定义，因此时序任务与静态任务的结果对应不同的评估条件。
+
+文本增强方法还以实体描述为输入。即使结构划分相同，描述的来源、长度和清洗方式也会改变模型可用的信息。数据集说明因此需同时记录结构划分、实体与关系文本来源、缺失描述处理方式及候选字典。
+
+\subsection{过滤排名与模型评估指标}
+
+链路预测通常为每个测试三元组分别执行头实体预测和尾实体预测。若直接对全部候选排序，当前目标之外的其他真实实体也可能获得高分，从而使一个合理预测受到惩罚。过滤评估（Filtered Evaluation）通过移除其他已知正确答案，衡量当前目标在剩余候选中的排名\cite{bordes2013translating}。
+
+以最终测试阶段常用的全划分过滤为例，定义已知事实集合
+\begin{equation}
+    \mathcal{K}=\mathcal{T}_{\mathrm{train}}
+      \cup\mathcal{T}_{\mathrm{valid}}\cup\mathcal{T}_{\mathrm{test}}.
+\end{equation}
+对于目标三元组 $(h,r,t)$，尾实体候选集合为
+\begin{equation}
+    \mathcal{C}^{\mathrm{filt}}_t
+    =\{e\in\mathcal{E}:(h,r,e)\notin\mathcal{K}\}\cup\{t\}.
+    \label{eq:bg_filtered}
+\end{equation}
+头实体预测采用对应的替换方式。式\eqref{eq:bg_filtered}保留当前目标，并移除其他已知正确候选。测试事实在此仅用于最终评估中的答案过滤，不参与参数训练、邻域构造或重排特征计算。
+
+过滤集合会影响目标排名。仅使用训练集与验证集，以及使用训练、验证和测试集的并集，是两种不同的过滤协议，报告结果时需注明。模型选择阶段也需说明验证集的过滤规则，防止测试信息参与方法调整。
+
+候选分数相同时，还需要确定并列处理规则。采用平均并列排名时，目标尾实体的排名可以写为
+\begin{equation}
+\begin{aligned}
+    \operatorname{rank}_t={}&1+
+    \sum_{e\in\mathcal{C}^{\mathrm{filt}}_t\setminus\{t\}}
+       \mathbb{I}[s(h,r,e)>s(h,r,t)]\\
+    &+\frac{1}{2}
+    \sum_{e\in\mathcal{C}^{\mathrm{filt}}_t\setminus\{t\}}
+       \mathbb{I}[s(h,r,e)=s(h,r,t)].
+\end{aligned}
+    \label{eq:bg_rank}
+\end{equation}
+其中，$\mathbb{I}[\cdot]$ 为指示函数。无并列时，排名等于分数严格高于目标的候选数加一。乐观排名和悲观排名采用不同的并列处理方式，比较结果时需统一规则。
+
+若测试集有 $N$ 个三元组，且每个三元组均进行头尾两次查询，则共有 $Q=2N$ 个排名。平均倒数排名（Mean Reciprocal Rank，MRR）定义为
+\begin{equation}
+    \operatorname{MRR}=\frac{1}{Q}\sum_{i=1}^{Q}
+       \frac{1}{\operatorname{rank}_i}.
+    \label{eq:bg_mrr}
+\end{equation}
+该指标对前列预测赋予更大权重，数值越高表示目标实体整体排序越靠前。前 $k$ 命中率定义为
+\begin{equation}
+    \operatorname{Hits@}k=\frac{1}{Q}\sum_{i=1}^{Q}
+       \mathbb{I}[\operatorname{rank}_i\leq k],
+    \qquad k\in\{1,3,10\}.
+    \label{eq:bg_hits}
+\end{equation}
+Hits@1 反映首位预测准确性，Hits@3 和 Hits@10 则反映较短候选列表对目标实体的覆盖情况。平均排名（Mean Rank，MR）为 $Q^{-1}\sum_i\operatorname{rank}_i$，数值越小越好，但更容易受到少数极低排名样本影响。各指标可用小数或百分数报告，表格与正文应保持单位一致。
+
+候选范围、文本输入、图结构来源和重排设置也会影响结果的可比性。全实体排序与检索后的小候选集合排序难度不同，类型约束和图邻域重排还会改变模型可用的信息。计算成本则需分别记录候选向量的离线编码、单次查询计算、训练显存和参数存储开销。
+
+\section{本章小结}
+
+本章给出了实体预测的任务定义、符号约定及传导式与归纳式设定，介绍了平移、投影、旋转和语义匹配模型，以及 Transformer、BERT 和双编码器的表示方法。提示学习与门控融合分别用于任务适配和信息组合，对比学习及辅助监督则约束表示的训练。实验评估以候选排名为基础，采用过滤排名、MRR 和 Hits@k 等指标；比较不同方法时，还需统一数据来源、候选范围与过滤规则。
